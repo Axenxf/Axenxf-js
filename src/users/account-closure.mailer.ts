@@ -34,8 +34,8 @@ export class AccountClosureMailer {
     await transporter.sendMail({
       from,
       to: emailAddress,
-      subject: 'Your NexaFx account has been closed',
-      text: `Hi ${displayName}, your NexaFx account has been closed and will be retained for the required financial-record retention period before PII is purged.`,
+      subject: 'Your Axenxf account has been closed',
+      text: `Hi ${displayName}, your Axenxf account has been closed and will be retained for the required financial-record retention period before PII is purged.`,
     });
   }
 }

@@ -128,7 +128,7 @@ export class MailService {
       await this.transporter.sendMail({
         from: process.env.MAIL_FROM,
         to: email,
-        subject: 'Verify your NexaFx email',
+        subject: 'Verify your Axenxf email',
         html: `<p>Your verification code is: <strong>${otp}</strong></p><p>This code expires in 5 minutes.</p>`,
       });
     } catch (err) {
@@ -149,7 +149,7 @@ export class MailService {
       expiresMinutes: context.expiresMinutes ?? 10,
     });
     return this.getTemplate('base')({
-      title: 'Verify your NexaFx account',
+      title: 'Verify your Axenxf account',
       year: new Date().getFullYear(),
       body,
     } as MailTemplateContext);
@@ -160,7 +160,7 @@ export class MailService {
       enableImplicitConversion: true,
     });
     return this.render('password-reset', {
-      title: 'Reset your NexaFx password',
+      title: 'Reset your Axenxf password',
       fullName: context.fullName,
       resetUrl: context.resetUrl,
     });
@@ -192,7 +192,7 @@ export class MailService {
       enableImplicitConversion: true,
     });
     return this.render('welcome', {
-      title: 'Welcome to NexaFx',
+      title: 'Welcome to Axenxf',
       fullName: context.fullName,
     });
   }
@@ -211,7 +211,15 @@ export class MailService {
 
   /** Escapes interpolated content the same way the Handlebars-based emails do. */
   renderAdminAlertHtml(payload: AdminAlertEmail): string {
-    const escape = (value: unknown) => Utils.escapeExpression(String(value ?? ''));
+    const escape = (value: unknown): string => {
+      if (value == null) return '';
+      if (typeof value === 'string') return Utils.escapeExpression(value);
+      if (typeof value === 'number' || typeof value === 'boolean') {
+        return Utils.escapeExpression(String(value));
+      }
+      return Utils.escapeExpression(JSON.stringify(value));
+    };
+
     return `<h2>${escape(payload.subject)}</h2><p>${escape(payload.body)}</p>${
       payload.metadata
         ? `<pre>${escape(JSON.stringify(payload.metadata, null, 2))}</pre>`
@@ -231,7 +239,7 @@ export class MailService {
       await this.transporter.sendMail({
         from: process.env.MAIL_FROM,
         to: email,
-        subject: 'Verify your NexaFx email',
+        subject: 'Verify your Axenxf email',
         html: `<p><a href="${url}">Verify your email</a></p><p>If you did not sign up, ignore this email.</p>`,
       });
     } catch (err) {
@@ -247,9 +255,9 @@ export class MailService {
       await this.transporter.sendMail({
         from: process.env.MAIL_FROM,
         to,
-        subject: 'Reset your NexaFx password',
+        subject: 'Reset your Axenxf password',
         html:
-          `<p>We received a request to reset your NexaFx password.</p>` +
+          `<p>We received a request to reset your Axenxf password.</p>` +
           `<p><a href="${url}">Reset your password</a></p>` +
           `<p>This link expires in 15 minutes and can be used once. If you did not ask for it, ignore this email.</p>`,
       });
@@ -316,12 +324,13 @@ export class MailService {
     const baseTemplate = this.getTemplate('base');
     const body = bodyTemplate(context);
     const title =
-      'title' in context ? String(context.title) : 'NexaFx Notification';
-    return baseTemplate({
+      'title' in context ? String(context.title) : 'Axenxf Notification';
+    const pageContext: MailTemplateContext = {
       title,
       year: new Date().getFullYear(),
       body,
-    } as MailTemplateContext);
+    };
+    return baseTemplate(pageContext);
   }
 
   private getTemplate(name: TemplateName): TemplateDelegate {

@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import {
   Injectable,
   Logger,
@@ -7,6 +10,30 @@ import {
 import { InjectQueue } from '@nestjs/bull';
 import { DataSource } from 'typeorm';
 import { Queue } from 'bull';
+
+const packageJson = JSON.parse(
+  readFileSync(join(__dirname, '../package.json'), 'utf8'),
+) as {
+  name?: string;
+  version?: string;
+  description?: string;
+};
+
+export type AppHealthInfo = {
+  name: string;
+  version: string;
+  description: string;
+  environment: string;
+  status: 'ok';
+  uptimeSeconds: number;
+  timestamp: string;
+};
+
+export type AppHealthStatus = {
+  status: 'ok';
+  service: string;
+  uptimeSeconds: number;
+};
 
 @Injectable()
 export class AppService implements OnApplicationShutdown {
@@ -19,6 +46,27 @@ export class AppService implements OnApplicationShutdown {
 
   getHello(): string {
     return 'Hello World!';
+  }
+
+  getHealth(): AppHealthStatus {
+    return {
+      status: 'ok',
+      service: packageJson.name ?? 'Axenxf-js',
+      uptimeSeconds: Number(process.uptime().toFixed(3)),
+    };
+  }
+
+  getInfo(): AppHealthInfo {
+    return {
+      name: packageJson.name ?? 'Axenxf-js',
+      version: packageJson.version ?? '0.0.0',
+      description:
+        packageJson.description ?? 'Axenxf financial platform REST API',
+      environment: process.env.NODE_ENV ?? 'development',
+      status: 'ok',
+      uptimeSeconds: Number(process.uptime().toFixed(3)),
+      timestamp: new Date().toISOString(),
+    };
   }
 
   async onApplicationShutdown(signal?: string) {

@@ -14,7 +14,7 @@ describe('configuration factory', () => {
       DB_PORT: '5433',
       DB_USER: 'nexa',
       DB_PASSWORD: 'secret',
-      DB_NAME: 'nexafx_prod',
+      DB_NAME: 'Axenxf_prod',
       JWT_SECRET: 'a'.repeat(32),
       REFRESH_TOKEN_SECRET: 'b'.repeat(32),
       OTP_SECRET: 'c'.repeat(32),
@@ -51,7 +51,7 @@ describe('configuration factory', () => {
       port: 5433,
       username: 'nexa',
       password: 'secret',
-      database: 'nexafx_prod',
+      database: 'Axenxf_prod',
       ssl: false,
     });
     expect(config.wallet.encryptionKey).toBe('d'.repeat(64));

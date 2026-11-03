@@ -92,8 +92,8 @@ async function bootstrap() {
   const swaggerEnabled = configService.get<boolean>('app.swaggerEnabled');
   if (nodeEnv !== 'production' || swaggerEnabled) {
     const swaggerConfig = new DocumentBuilder()
-      .setTitle('NexaFx API')
-      .setDescription('NexaFx financial platform REST API')
+      .setTitle('Axenxf API')
+      .setDescription('Axenxf financial platform REST API')
       .setVersion('1.0')
       .addBearerAuth()
       // Documented paths are relative to the global prefix.

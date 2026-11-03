@@ -31,4 +31,16 @@ describe('AppController', () => {
       expect(appController.getHello()).toBe('Hello World!');
     });
   });
+
+  describe('info', () => {
+    it('should return application metadata including health status', () => {
+      const info = appController.getInfo();
+
+      expect(info.name).toBe('Axenxf-js');
+      expect(info.status).toBe('ok');
+      expect(typeof info.environment).toBe('string');
+      expect(typeof info.version).toBe('string');
+      expect(typeof info.uptimeSeconds).toBe('number');
+    });
+  });
 });

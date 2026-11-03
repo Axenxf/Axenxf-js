@@ -33,7 +33,7 @@ describe('KYC End-to-End Flow (e2e)', () => {
     const adminReg = await request(app.getHttpServer())
       .post('/api/v1/auth/register')
       .send({
-        email: 'admin@nexafx.com',
+        email: 'admin@Axenxf.com',
         password: 'adminpassword123',
         firstName: 'System',
         lastName: 'Admin',
@@ -41,7 +41,7 @@ describe('KYC End-to-End Flow (e2e)', () => {
 
     const adminLogin = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
-      .send({ email: 'admin@nexafx.com', password: 'adminpassword123' });
+      .send({ email: 'admin@Axenxf.com', password: 'adminpassword123' });
 
     adminToken = adminLogin.body.accessToken;
   });

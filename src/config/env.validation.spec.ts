@@ -19,7 +19,7 @@ const VALID_ENV: Record<string, string> = {
   DB_PORT: '5432',
   DB_USER: 'postgres',
   DB_PASSWORD: 'secret',
-  DB_NAME: 'nexafx',
+  DB_NAME: 'Axenxf',
   DB_SSL: 'false',
   // JWT
   JWT_SECRET: 'a'.repeat(32),
@@ -203,8 +203,8 @@ describe('validateEnv', () => {
     });
 
     it('accepts a valid MAIL_USER email address', () => {
-      const result = validateEnv(env({ MAIL_USER: 'admin@nexafx.io' }));
-      expect(result.MAIL_USER).toBe('admin@nexafx.io');
+      const result = validateEnv(env({ MAIL_USER: 'admin@Axenxf.io' }));
+      expect(result.MAIL_USER).toBe('admin@Axenxf.io');
     });
   });
 

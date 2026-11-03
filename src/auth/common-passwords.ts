@@ -16,7 +16,7 @@ changeme changeit default guest user test testing tester testtest temp temporary
 abc abcd abcde abcdef abcdefg abcdefgh abc123 abcabc abcdefghijkl
 login logmein access mustang harley ranger cheese killer pepper cookie
 internet computer samsung google facebook twitter instagram snapchat whatsapp linkedin
-nexafx nexa nexafxpassword stellar stellarlumens lumens bitcoin ethereum crypto cryptocurrency blockchain
+Axenxf nexa Axenxfpassword stellar stellarlumens lumens bitcoin ethereum crypto cryptocurrency blockchain
 1q2w3e 1q2w3e4r 1qaz2wsx 1qazxsw2 qazwsx qazwsxedc zaq12wsx q1w2e3r4 1234qwer qwer1234
 iloveu loveyou lovelove loveme forever 2020 2021 2022 2023 2024 2025 2026
 baseball1 football1 monkey1 dragon1 master1 sunshine1 princess1 charlie donald

@@ -16,7 +16,7 @@ export class S3Service {
         secretAccessKey: config.get('AWS_SECRET_ACCESS_KEY') || '',
       },
     });
-    this.bucket = config.get('S3_BUCKET') || 'nexafx-kyc';
+    this.bucket = config.get('S3_BUCKET') || 'Axenxf-kyc';
   }
 
   async getUploadUrl(key: string): Promise<string> {

@@ -99,7 +99,7 @@ export class AuthService {
   private dummyHash?: Promise<string>;
 
   private getDummyHash(): Promise<string> {
-    this.dummyHash ??= this.passwordService.hash('nexafx-timing-equaliser-password');
+    this.dummyHash ??= this.passwordService.hash('Axenxf-timing-equaliser-password');
     return this.dummyHash;
   }
 
@@ -257,25 +257,38 @@ export class AuthService {
       throw new UnauthorizedException('Refresh tokens are not available');
     }
 
-      // Take identity and role from the database, not the presented token, so
-      // demotions and deactivations take effect on the next refresh.
-      const user = await this.usersService.findById(payload.sub);
-      const newAccessToken = this.issueToken(user.id, user.email, user.role, user.tokenVersion).accessToken;
-      const newRefreshToken = this.jwtService.sign(
-        { sub: user.id, typ: TokenType.REFRESH },
-        { secret: refreshSecret, expiresIn: '7d' },
+    try {
+      const payload = this.jwtService.verify(refreshToken) as { sub?: string; typ?: string };
+      if (!payload.sub || payload.typ !== TokenType.REFRESH) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      const user = await this.usersService.findByIdOrNull(payload.sub);
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      const isDeactivated = await this.deactivationService?.isUserDeactivated(user.id);
+      if (user.isActive === false || isDeactivated) {
+        throw new UnauthorizedException('Account has been deactivated by an administrator');
+      }
+
+      const rotated = await this.refreshTokens.rotateToken(
+        refreshToken,
+        parseDeviceInfo(context),
       );
-      return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+
+      return {
+        ...this.issueToken(user.id, user.email, user.role, user.tokenVersion),
+        refreshToken: rotated.token,
+        refreshTokenExpiresAt: rotated.expiresAt,
+      };
     } catch (err) {
-      if (err instanceof ForbiddenException) throw err;
+      if (err instanceof ForbiddenException || err instanceof UnauthorizedException) {
+        throw err;
+      }
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
-
-    return {
-      ...this.issueToken(user.id, user.email, user.role, rotated.id),
-      refreshToken: rotated.token,
-      refreshTokenExpiresAt: rotated.expiresAt,
-    };
   }
 
   /** End the caller's session: revoke the given refresh token, else the one named by `sid`. */

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve `NexaFx-js`.
+Thanks for helping improve `Axenxf-js`.
 
 ## Local setup
 
@@ -27,7 +27,7 @@ Thanks for helping improve `NexaFx-js`.
 
 - Use short-lived feature branches such as `fix/issue-123-short-description`.
 - Keep each branch scoped to a single issue or small, related change set.
-- Open pull requests from your fork into `Nexacore-Org/NexaFx-js`.
+- Open pull requests from your fork into `Nexacore-Org/Axenxf-js`.
 
 ## Commit and PR format
 

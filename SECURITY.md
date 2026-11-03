@@ -1,12 +1,12 @@
 # Security Policy
 
-NexaFx-js handles real money movement and personally identifiable information. We take
+Axenxf-js handles real money movement and personally identifiable information. We take
 vulnerability reports seriously and ask that you report suspected security issues responsibly,
 as described below.
 
 ## Supported versions
 
-NexaFx-js does not currently maintain multiple released versions in parallel — only the `main`
+Axenxf-js does not currently maintain multiple released versions in parallel — only the `main`
 branch (and whatever is deployed from it) is supported. Security fixes are applied to `main` and
 released as soon as practical; there is no backport policy for older commits.
 
@@ -54,7 +54,7 @@ vulnerability.
 
 ## Scope
 
-This policy covers the NexaFx-js application code in this repository: the API
+This policy covers the Axenxf-js application code in this repository: the API
 (`ignition-api`/`src/`), authentication and authorization, wallet/ledger/transaction handling,
 webhook delivery, and infrastructure configuration checked into this repo. Vulnerabilities in
 third-party dependencies should generally be reported upstream, but we'd still like to know about

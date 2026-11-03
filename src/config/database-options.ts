@@ -29,7 +29,7 @@ export function buildPostgresConnectionOptions(): PostgresConnectionOptions {
     port: parseInt(process.env.DB_PORT || '5432', 10),
     username: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || 'postgres',
-    database: process.env.DB_NAME || 'nexafx_dev',
+    database: process.env.DB_NAME || 'Axenxf_dev',
     ssl: sslEnabled ? { rejectUnauthorized: false } : false,
   };
 }

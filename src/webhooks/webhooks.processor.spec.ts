@@ -77,10 +77,11 @@ describe('WebhooksProcessor', () => {
 
     let capturedHeaders: Record<string, string> = {};
     let capturedBody: unknown;
-    httpService.post.mockImplementation((_url, body, config) => {
+    httpService.post.mockImplementation((...args: Parameters<HttpService['post']>) => {
+      const [, body, config] = args;
       capturedHeaders = (config as { headers: Record<string, string> }).headers;
       capturedBody = body;
-      return of(axiosResponse(200));
+      return of(axiosResponse(200)) as ReturnType<HttpService['post']>;
     });
 
     await processor.deliver(makeJob());
@@ -90,7 +91,7 @@ describe('WebhooksProcessor', () => {
       .update(expectedPayload)
       .digest('hex');
 
-    expect(capturedHeaders['X-Nexafx-Signature']).toBe(expectedSig);
+    expect(capturedHeaders['X-Axenxf-Signature']).toBe(expectedSig);
   });
 
   it('marks delivery DELIVERED on successful HTTP response', async () => {

@@ -15,8 +15,21 @@ export class AppController {
     return this.appService.getHello();
   }
 
+  @Public()
+  @Get('health')
+  getHealth() {
+    return this.appService.getHealth();
+  }
+
+  @Public()
+  @Get('info')
+  getInfo() {
+    return this.appService.getInfo();
+  }
+
   @Post('cats')
   createCat(@Body() createCatDto: CreateCatDto) {
+    void createCatDto;
     return 'This action adds a new cat';
   }
 }

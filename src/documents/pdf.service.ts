@@ -68,7 +68,7 @@ export class PdfService {
     const margin = 50;
     const lineHeight = 16;
 
-    page.drawText('NexaFx', {
+    page.drawText('Axenxf', {
       x: margin,
       y: height - margin,
       size: 24,
@@ -161,7 +161,7 @@ export class PdfService {
       color: rgb(0.1, 0.3, 0.7),
     });
 
-    page.drawText('NexaFx - Secure financial statements', {
+    page.drawText('Axenxf - Secure financial statements', {
       x: margin,
       y: 30,
       size: 8,

@@ -1,6 +1,6 @@
-# NexaFx-js
+# Axenxf-js
 
-NexaFx-js is a high-performance NestJS enterprise platform supporting FX rates, multi-currency wallets, double-entry ledger bookkeeping, compliance, and Stellar blockchain transactions.
+Axenxf-js is a high-performance NestJS enterprise platform supporting FX rates, multi-currency wallets, double-entry ledger bookkeeping, compliance, and Stellar blockchain transactions.
 
 ## Features
 
@@ -60,7 +60,18 @@ npm run lint
 npm run check:no-wildcard-deps
 ```
 
-### 5. Docker Deployment
+### 5. Operational Health Endpoints
+
+The API exposes a lightweight health and metadata surface for deployment checks and observability:
+
+```bash
+curl http://localhost:3000/health
+curl http://localhost:3000/info
+```
+
+These return simple status data including the app name, version, environment, and uptime.
+
+### 6. Docker Deployment
 
 ```bash
 docker-compose up --build

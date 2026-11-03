@@ -22,7 +22,7 @@ if (!process.env.OTEL_TRACES_EXPORTER) {
 
 const sdk = new NodeSDK({
   resource: new Resource({
-    [SEMRESATTRS_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME ?? 'nexafx-api',
+    [SEMRESATTRS_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME ?? 'Axenxf-api',
   }),
   traceExporter: exporterUrl
     ? new OTLPTraceExporter({ url: `${exporterUrl.replace(/\/+$/, '')}/v1/traces` })

@@ -15,7 +15,7 @@ export function setRequiredTestEnv(): void {
   process.env.DB_PORT = '5432';
   process.env.DB_USER = 'postgres';
   process.env.DB_PASSWORD = 'postgres';
-  process.env.DB_NAME = 'nexafx_test';
+  process.env.DB_NAME = 'Axenxf_test';
   process.env.JWT_SECRET = 'test-jwt-secret-must-be-at-least-32-chars';
   process.env.REFRESH_TOKEN_SECRET =
     'test-refresh-secret-must-be-at-least-32';

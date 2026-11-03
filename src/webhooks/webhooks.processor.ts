@@ -79,7 +79,7 @@ export class WebhooksProcessor {
         this.httpService.post(endpoint.url, body, {
           headers: {
             'Content-Type': 'application/json',
-            'X-Nexafx-Signature': signature,
+            'X-Axenxf-Signature': signature,
           },
           timeout: 10000,
         }),

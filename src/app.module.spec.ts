@@ -12,7 +12,7 @@ describe('AppModule', () => {
       DB_PORT: '5432',
       DB_USER: 'postgres',
       DB_PASSWORD: 'postgres',
-      DB_NAME: 'nexafx',
+      DB_NAME: 'Axenxf',
       JWT_SECRET: 'a'.repeat(32),
       REFRESH_TOKEN_SECRET: 'b'.repeat(32),
       OTP_SECRET: 'c'.repeat(32),
@@ -62,7 +62,12 @@ describe('AppModule', () => {
     expect(AppModule).toBeDefined();
     expect(mockForRootAsync).toHaveBeenCalled();
 
-    const bullConfig = mockForRootAsync.mock.calls[0][0];
+    const bullConfig = mockForRootAsync.mock.calls[0][0] as {
+      inject: unknown[];
+      useFactory: (service: ConfigService) => {
+        redis: { host: string; port: number; password: string };
+      };
+    };
     expect(bullConfig.inject).toEqual([ConfigService]);
 
     const fakeConfigService = {
@@ -78,7 +83,10 @@ describe('AppModule', () => {
       }),
     } as unknown as ConfigService;
 
-    const result = bullConfig.useFactory(fakeConfigService);
+    const useFactory = bullConfig.useFactory as (service: ConfigService) => {
+      redis: { host: string; port: number; password: string };
+    };
+    const result = useFactory(fakeConfigService);
     expect(result.redis.host).toBe('config-host');
     expect(result.redis.port).toBe(1234);
     expect(result.redis.password).toBe('config-password');
