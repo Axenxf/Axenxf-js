@@ -33,19 +33,31 @@ export class FeesService {
   ) {}
 
   private getFeeRate(transactionType: string): number {
-    return transactionType === 'withdrawal' ? WITHDRAWAL_FEE_RATE : DEFAULT_FEE_RATE;
+    return transactionType === 'withdrawal'
+      ? WITHDRAWAL_FEE_RATE
+      : DEFAULT_FEE_RATE;
   }
 
-  calculateFee(amount: number, transactionType = 'default', currency = 'USD'): FeeResult {
-    const feeAmount = Number((amount * this.getFeeRate(transactionType)).toFixed(8));
+  calculateFee(
+    amount: number,
+    transactionType = 'default',
+    currency = 'USD',
+  ): FeeResult {
+    const feeAmount = Number(
+      (amount * this.getFeeRate(transactionType)).toFixed(8),
+    );
 
-    this.feeAuditService.recordFeeCalculation({
-      feeAmount,
-      currency,
-      feeType: 'percentage',
-      calculatedAmount: amount,
-      appliedTier: 'flat',
-    }).catch((err) => this.logger.warn(`Failed to record fee audit: ${err.message}`));
+    this.feeAuditService
+      .recordFeeCalculation({
+        feeAmount,
+        feeCurrency: currency,
+        feeType: 'percentage',
+        calculatedAmount: amount,
+        appliedTier: 'flat',
+      })
+      .catch((err) =>
+        this.logger.warn(`Failed to record fee audit: ${err.message}`),
+      );
 
     return { feeAmount, reason: null };
   }
@@ -72,7 +84,10 @@ export class FeesService {
       amount: dto.amount,
       feeAmount: dto.feeAmount,
       currency: dto.currency,
-      reason: dto.feeAmount === 0 ? (dto.reason ?? 'no_fee_config') : (dto.reason ?? null),
+      reason:
+        dto.feeAmount === 0
+          ? (dto.reason ?? 'no_fee_config')
+          : (dto.reason ?? null),
     });
     return this.feeRepo.save(record);
   }
