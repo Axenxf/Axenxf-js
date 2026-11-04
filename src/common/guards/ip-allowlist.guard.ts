@@ -35,9 +35,17 @@ function ipv4ToNumber(address: string): number | null {
     return null;
   }
 
-  return (
-    ((bytes[0] << 24) + (bytes[1] << 16) + (bytes[2] << 8) + bytes[3]) >>> 0
-  );
+  const [first, second, third, fourth] = bytes;
+  if (
+    first === undefined ||
+    second === undefined ||
+    third === undefined ||
+    fourth === undefined
+  ) {
+    return null;
+  }
+
+  return ((first << 24) + (second << 16) + (third << 8) + fourth) >>> 0;
 }
 
 function cidrContainsIp(ip: string, cidr: string): boolean {
