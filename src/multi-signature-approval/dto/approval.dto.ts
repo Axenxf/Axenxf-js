@@ -49,8 +49,9 @@ export class CreateApprovalDto {
 
   @IsObject()
   @ValidateNested()
-  @Type(({ object }) =>
-    (object as { actionType?: string })?.actionType === ApprovalActionType.UPDATE_USER_STATUS
+  @Type((options) =>
+    (options?.object as { actionType?: string } | undefined)?.actionType ===
+    ApprovalActionType.UPDATE_USER_STATUS
       ? UpdateUserStatusData
       : OverrideTransactionStatusData,
   )
