@@ -17,17 +17,16 @@ import { redisStore } from 'cache-manager-redis-store';
 import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { RateLimitModule } from './modules/rate-limit/rate-limit.module';
 import { AdminModule } from './admin/admin.module';
-import { AuthModule } from './modules/auth/auth.module';
+import { AuthModule } from './auth/auth.module';
 // NOTE: './modules/users/users.module' does not exist; the only UsersModule is at
 // './users/users.module', imported below as UpstreamUsersModule.
 // NOTE: every relative import below must resolve to a file on disk - `npm run
 // check:app-module-imports` enforces this in CI. Modules that were imported here but never
 // committed are listed under "Deferred modules" in docs/architecture.md.
 import { SessionsModule } from './modules/sessions/sessions.module';
-import { TransactionsModule } from './modules/transactions/transactions.module';
-import { FeesModule } from './modules/fee/fee.module';
+import { TransactionsModule } from './transactions/transactions.module';
+import { FeesModule } from './fees/fees.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { IdempotencyModule } from './idempotency/idempotency.module';
 import { LedgerModule } from './ledger/ledger.module';
@@ -35,7 +34,6 @@ import { AccountFreezeModule } from './modules/account-freeze/account-freeze.mod
 import { StellarFederationModule } from './modules/stellar-federation/stellar-federation.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { ApiKeyAuthGuard } from './modules/api-keys/guards/api-key-auth.guard';
-import { ExportModule } from './modules/export/export.module';
 import { KycModule } from './kyc/kyc.module';
 import { FxModule } from './fx/fx.module';
 import { SpendingModule } from './spending/spending.module';
@@ -81,9 +79,7 @@ import { ReferralModule } from './referral/referral.module';
 import { FeeRevenueModule } from './reports/fee-revenue.module';
 import { AmlModule } from './aml/aml.module';
 import { SupportTicketsModule } from './modules/support-tickets/support-tickets.module';
-import { FeeReportsModule } from './modules/fee-reports/fee-reports.module';
 import { WalletHistoryModule } from './modules/wallet-history/wallet-history.module';
-import { KycTiersModule } from './modules/kyc-tiers/kyc-tiers.module';
 import { AppGraphQLModule } from './graphql/graphql.module';
 import { QueuesModule } from './queues/queues.module';
 
@@ -262,7 +258,6 @@ async function createCacheOptions(configService: ConfigService<Configuration>) {
     AccountFreezeModule,
     StellarFederationModule,
     ApiKeysModule,
-    ExportModule,
     UpstreamReconciliationModule,
     ScheduledJobsModule,
     MetricsModule,
@@ -278,14 +273,11 @@ async function createCacheOptions(configService: ConfigService<Configuration>) {
     FeeRevenueModule,
     AmlModule,
     AdminModule,
-    RateLimitModule,
     SessionsModule,
     TransactionsModule,
     KycModule,
     SupportTicketsModule,
-    FeeReportsModule,
     WalletHistoryModule,
-    KycTiersModule,
     AppGraphQLModule,
     FxModule,
   ],

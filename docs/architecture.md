@@ -32,6 +32,13 @@ These exist under `src/modules/` as empty stubs and are **not** registered in `A
 `ModulesCacheModule`, `RiskEngineModule`, `ScheduledTransactionsModule`, `SecretsModule` and
 `TransactionRiskModule`. Each is tracked by its own wiring issue.
 
+Incomplete parallel feature implementations are deferred from `AppModule` and excluded from the
+Nest build: `src/modules/auth`, `src/modules/transactions`, `src/modules/fee`,
+`src/modules/rate-limit`, `src/modules/export`, `src/modules/fee-reports` and
+`src/modules/kyc-tiers`. The live auth, transaction and fee features use the root modules under
+`src/auth`, `src/transactions` and `src/fees`; the other listed features remain unavailable until
+their implementations and dependencies are complete.
+
 A further set of dangling imports duplicated modules that do exist under a different path, and were
 dropped in favour of the real ones: `./modules/reconciliation` (use `ReconciliationModule` from
 `src/reconciliation`), `./modules/mail` (`src/mail`), `./modules/wallets` (`src/wallet`) and
@@ -95,7 +102,7 @@ value (`false | { rejectUnauthorized: boolean }`). `app.module.ts`'s factory now
   doesn't have — but wiring an unreviewed, previously-broken money-movement endpoint live without
   being able to run the test suite against it here was judged too risky. If this cooldown is
   wanted, it should be re-added directly to the live withdrawal flow (or ported once the
-  `src/transactions` vs. `src/modules/transactions` consolidation from issue #1300 lands), fixed,
+  `src/transactions` vs. `src/modules/transactions` consolidation from issue #1300 is complete), fixed,
   and tested before going live.
 - **`NotificationQueueModule`/`NotificationProcessor`** (`src/notification/`) — removed. The
   `@Process(NOTIFICATION_JOB_NAMES.DISPATCH)` handler was fully implemented, but a repo-wide
