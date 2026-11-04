@@ -19,6 +19,7 @@
     "src/notification/**",
     "src/payments/claimable-balance.service.ts",
     "src/transactions/stellar-xdr.service.ts",
-    "src/gateways/redis-adapter.ts"
+    "src/gateways/redis-adapter.ts",
+    "src/exchange-rates/exchange-rate-failover.service.ts"
   ]
 }

@@ -44,7 +44,9 @@ Unregistered legacy fragments are also omitted from the Nest build until they ha
 module and their dependencies are restored: `src/modules/compliance`,
 `src/modules/enrichment`, `src/modules/insights-forecast`, `src/notification`,
 `src/payments/claimable-balance.service.ts`, `src/transactions/stellar-xdr.service.ts` and
-`src/gateways/redis-adapter.ts`.
+`src/gateways/redis-adapter.ts`. The unreferenced
+`src/exchange-rates/exchange-rate-failover.service.ts` is deferred until its Redis dependency and
+provider wiring exist.
 
 A further set of dangling imports duplicated modules that do exist under a different path, and were
 dropped in favour of the real ones: `./modules/reconciliation` (use `ReconciliationModule` from

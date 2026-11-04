@@ -6,22 +6,25 @@ describe('ExchangeRatesService rate broadcasting', () => {
     const cacheRepo = {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn().mockResolvedValue(null),
-      create: jest.fn((entity) => entity),
-      save: jest.fn(async (entity) => entity),
+      create: jest.fn((entity: unknown) => entity),
+      save: jest.fn((entity: unknown) => Promise.resolve(entity)),
       count: jest.fn().mockResolvedValue(1),
     };
     const historyRepo = {
-      create: jest.fn((entity) => entity),
-      save: jest.fn(async (entity) => entity),
+      create: jest.fn((entity: unknown) => entity),
+      save: jest.fn((entity: unknown) => Promise.resolve(entity)),
     };
     return { cacheRepo, historyRepo };
   };
 
-  const makeGateway = () =>
-    ({
-      broadcastRateUpdate: jest.fn(),
-      seedCurrentRates: jest.fn(),
-    }) as unknown as jest.Mocked<RatesGateway>;
+  const makeGateway = () => ({
+    broadcastRateUpdate: jest.fn(),
+    seedCurrentRates: jest.fn(),
+  });
+
+  const rateService = {
+    getRate: jest.fn().mockResolvedValue({ rate: 1.2, provider: 'test' }),
+  };
 
   it('broadcasts every refreshed pair when the cron refreshes expired rates', async () => {
     const { cacheRepo, historyRepo } = makeRepos();
@@ -29,7 +32,8 @@ describe('ExchangeRatesService rate broadcasting', () => {
     const service = new ExchangeRatesService(
       cacheRepo as any,
       historyRepo as any,
-      gateway,
+      gateway as unknown as RatesGateway,
+      rateService as any,
     );
 
     await service.refreshExpiredRates();
@@ -37,7 +41,7 @@ describe('ExchangeRatesService rate broadcasting', () => {
     expect(gateway.broadcastRateUpdate).toHaveBeenCalled();
 
     const broadcastPairs = gateway.broadcastRateUpdate.mock.calls.map(
-      ([pair]) => pair,
+      ([pair]) => String(pair),
     );
     expect(broadcastPairs).toEqual([
       'USD/NGN',
@@ -60,7 +64,8 @@ describe('ExchangeRatesService rate broadcasting', () => {
     const service = new ExchangeRatesService(
       cacheRepo as any,
       historyRepo as any,
-      gateway,
+      gateway as unknown as RatesGateway,
+      rateService as any,
     );
 
     await service.refreshExpiredRates();
@@ -78,7 +83,8 @@ describe('ExchangeRatesService rate broadcasting', () => {
     const service = new ExchangeRatesService(
       cacheRepo as any,
       historyRepo as any,
-      gateway,
+      gateway as unknown as RatesGateway,
+      rateService as any,
     );
 
     await service.onModuleInit();
@@ -96,7 +102,8 @@ describe('ExchangeRatesService rate broadcasting', () => {
     const service = new ExchangeRatesService(
       cacheRepo as any,
       historyRepo as any,
-      gateway,
+      gateway as unknown as RatesGateway,
+      rateService as any,
     );
 
     await expect(service.onModuleInit()).resolves.toBeUndefined();

@@ -1,6 +1,12 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, LessThanOrEqual, Between } from 'typeorm';
+import { Repository, MoreThan, LessThanOrEqual } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ExchangeRateCacheEntity } from './entities/exchange-rate-cache.entity';
 import { ExchangeRateHistoryEntity } from './entities/exchange-rate-history.entity';
@@ -37,8 +43,9 @@ export class ExchangeRatesService implements OnModuleInit {
         rates.map((r) => ({ currencyPair: r.pair, rate: Number(r.rate) })),
       );
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown error';
       this.logger.warn(
-        `Unable to seed live rate snapshot at startup: ${error.message}`,
+        `Unable to seed live rate snapshot at startup: ${message}`,
       );
     }
   }
@@ -175,7 +182,13 @@ export class ExchangeRatesService implements OnModuleInit {
       }
     }
     const convertedAmount = Number((amount * rate).toFixed(8));
-    return { from: from.toUpperCase(), to: to.toUpperCase(), amount, convertedAmount, rate };
+    return {
+      from: from.toUpperCase(),
+      to: to.toUpperCase(),
+      amount,
+      convertedAmount,
+      rate,
+    };
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
