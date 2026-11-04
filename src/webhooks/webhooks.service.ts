@@ -355,6 +355,9 @@ export class WebhooksService {
     // Single-sided events (deposit/withdrawal/swap/reversal) carry no
     // counterparty, so the payload is already scoped to the owner.
     return payload;
+  }
+
+  /**
    * Delete deliveries older than `retentionDays` (#1446). Retention is opt-in:
    * a non-positive or unset value prunes nothing, so nothing is deleted by
    * accident. Returns the number of rows removed.
