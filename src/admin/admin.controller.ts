@@ -9,18 +9,16 @@ import {
   Post,
   Query,
   Res,
+  Optional,
+  ServiceUnavailableException,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { ApprovalService } from '../multi-signature-approval/approval.service';
 import { Response } from 'express';
 import { join, resolve, normalize } from 'path';
 import { AdminService } from './admin.service';
-import { AdminApprovalStatus } from './admin-approval.entity';
-import {
-  AdminApprovalActionType,
-  CreateAdminApprovalDto,
-  RejectAdminApprovalDto,
-} from './dto/create-admin-approval.dto';
+import { AdminApprovalActionType } from './dto/create-admin-approval.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminRoleGuard } from '../common/guards/admin-role.guard';
@@ -50,7 +48,27 @@ function assertSafePathSegment(segment: string, paramName: string): void {
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    @Optional() private readonly approvalService?: ApprovalService,
+  ) {}
+
+  private requestAdminApproval(
+    actionType: AdminApprovalActionType,
+    actionData: unknown,
+    adminId: string,
+  ) {
+    if (!this.approvalService) {
+      throw new ServiceUnavailableException(
+        'Admin approval workflow is unavailable',
+      );
+    }
+    return this.approvalService.requestAdminApproval(
+      actionType,
+      actionData,
+      adminId,
+    );
+  }
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard, IpAllowlistGuard)
   @UseInterceptors(CacheInterceptor)
@@ -64,7 +82,10 @@ export class AdminController {
   @UseGuards(JwtAuthGuard, AdminRoleGuard, IpAllowlistGuard)
   @Get('reports/cbn-compliance')
   generateCbnComplianceReport(@Query() query: CbnReportQueryDto) {
-    return this.adminService.generateCbnComplianceReport(query.period, query.periodStart);
+    return this.adminService.generateCbnComplianceReport(
+      query.period,
+      query.periodStart,
+    );
   }
 
   @UseGuards(JwtAuthGuard, AdminRoleGuard, IpAllowlistGuard)
@@ -96,7 +117,7 @@ export class AdminController {
   ) {
     // With dual control on, a single admin can only *request* the change.
     if (this.adminService.isDualControlEnabled()) {
-      return this.adminService.requestAdminApproval(
+      return this.requestAdminApproval(
         AdminApprovalActionType.OVERRIDE_TRANSACTION_STATUS,
         { transactionId: id, newStatus: dto.status, reason: dto.reason },
         adminId,
@@ -118,7 +139,7 @@ export class AdminController {
     @CurrentUser('id') adminId: string,
   ) {
     if (this.adminService.isDualControlEnabled()) {
-      return this.adminService.requestAdminApproval(
+      return this.requestAdminApproval(
         AdminApprovalActionType.UPDATE_USER_STATUS,
         { targetUserId: id, isActive: dto.isActive, reason: dto.reason },
         adminId,
@@ -139,12 +160,7 @@ export class AdminController {
     @Body() dto: UpdateUserRoleDto,
     @CurrentUser('id') adminId: string,
   ) {
-    return this.adminService.updateUserRole(
-      id,
-      dto.role,
-      adminId,
-      dto.reason,
-    );
+    return this.adminService.updateUserRole(id, dto.role, adminId, dto.reason);
   }
 
   /**
@@ -204,11 +220,5 @@ export class AdminController {
     @CurrentUser('id') adminId: string,
   ) {
     return this.adminService.updateSpread(pair, spreadPercentage, adminId);
-  }
-
-  @UseGuards(JwtAuthGuard, AdminRoleGuard, IpAllowlistGuard)
-  @Post('users/:id/impersonate')
-  impersonateUser(@Param('id') id: string, @CurrentUser('id') adminId: string) {
-    return this.adminService.impersonateUser(id, adminId);
   }
 }

@@ -1,16 +1,34 @@
-import { Injectable, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+  Optional,
+} from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { JwtService } from '@nestjs/jwt';
 import { ApprovalService } from '../multi-signature-approval/approval.service';
 import { ApprovalActionType } from '../multi-signature-approval/dto/approval.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository, Between, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import { Between, EntityManager, Like, Not, Repository } from 'typeorm';
 import { User, UserRole } from '../users/user.entity';
-import { Transaction, TransactionStatus } from '../transactions/transaction.entity';
+import {
+  Transaction,
+  TransactionStatus,
+} from '../transactions/transaction.entity';
 import { KycDocument } from '../kyc/kyc-document.entity';
 import { KycDocumentStatus } from '../kyc/kyc-document.entity';
 import { SupportTicketEntity } from '../modules/support-tickets/entities/support-ticket.entity';
 import { WebhookEndpoint } from '../webhooks/webhook-endpoint.entity';
 import { AmlAlert } from '../aml/aml-alert.entity';
 import { AuditService } from '../audit/audit.service';
+import { AdminApproval } from '../multi-signature-approval/admin-approval.entity';
+import { CbnReportPeriod } from './dto/cbn-report-query.dto';
+import { TOKEN_VERSION_CHANGED_EVENT } from '../auth/token-version.service';
+import { TokenType } from '../auth/token-types';
+import { ExchangeRateService } from '../fx/exchange-rate.service';
 
 export interface AdminStats {
   users: number;
@@ -37,7 +55,12 @@ export class AdminService implements OnModuleInit {
     private readonly webhooksRepository: Repository<WebhookEndpoint>,
     @InjectRepository(AmlAlert)
     private readonly alertsRepository: Repository<AmlAlert>,
+    @InjectRepository(AdminApproval)
+    private readonly adminApprovalsRepository: Repository<AdminApproval>,
     private readonly auditService: AuditService,
+    @Optional() private readonly events?: EventEmitter2,
+    @Optional() private readonly jwtService?: JwtService,
+    @Optional() private readonly rateService?: ExchangeRateService,
     @Optional() private readonly approvalService?: ApprovalService,
   ) {}
 
@@ -46,12 +69,24 @@ export class AdminService implements OnModuleInit {
     this.approvalService?.registerHandler(
       ApprovalActionType.OVERRIDE_TRANSACTION_STATUS,
       (data, approvedBy, manager) =>
-        this.overrideTransactionStatus(data.transactionId, data.newStatus, approvedBy, data.reason, manager),
+        this.overrideTransactionStatus(
+          data.transactionId,
+          data.newStatus,
+          approvedBy,
+          data.reason,
+          manager,
+        ),
     );
     this.approvalService?.registerHandler(
       ApprovalActionType.UPDATE_USER_STATUS,
       (data, approvedBy, manager) =>
-        this.updateUserStatus(data.targetUserId, data.isActive, approvedBy, data.reason, manager),
+        this.updateUserStatus(
+          data.targetUserId,
+          data.isActive,
+          approvedBy,
+          data.reason,
+          manager,
+        ),
     );
   }
 
@@ -68,7 +103,9 @@ export class AdminService implements OnModuleInit {
       this.usersRepository.count(),
       this.transactionsRepository.count(),
       this.kycRepository.count(),
-      this.kycRepository.count({ where: { status: KycDocumentStatus.PENDING } }),
+      this.kycRepository.count({
+        where: { status: KycDocumentStatus.PENDING },
+      }),
       this.supportTicketsRepository.count(),
       this.webhooksRepository.count(),
       this.alertsRepository.count(),
@@ -85,6 +122,38 @@ export class AdminService implements OnModuleInit {
     };
   }
 
+  isDualControlEnabled(): boolean {
+    return process.env.ADMIN_DUAL_CONTROL === 'true';
+  }
+
+  async searchPlatform(query: string) {
+    const term = query.trim();
+    if (!term) {
+      return { query, results: { users: [], transactions: [] } };
+    }
+
+    const [users, transactions] = await Promise.all([
+      this.usersRepository.find({
+        where: [{ email: Like(`%${term}%`) }],
+        select: { id: true, email: true, firstName: true, lastName: true },
+        take: 10,
+      }),
+      this.transactionsRepository.find({
+        where: [{ reference: Like(`%${term}%`) }],
+        select: {
+          id: true,
+          reference: true,
+          status: true,
+          amount: true,
+          currency: true,
+        },
+        take: 10,
+      }),
+    ]);
+
+    return { query, results: { users, transactions } };
+  }
+
   /** `[from, to)` UTC window for a CBN filing. */
   cbnReportWindow(
     period: CbnReportPeriod = 'monthly',
@@ -95,13 +164,31 @@ export class AdminService implements OnModuleInit {
     let from: Date;
     if (periodStart) {
       const parsed = new Date(periodStart);
-      from = new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()));
+      from = new Date(
+        Date.UTC(
+          parsed.getUTCFullYear(),
+          parsed.getUTCMonth(),
+          parsed.getUTCDate(),
+        ),
+      );
     } else if (period === 'quarterly') {
-      from = new Date(Date.UTC(now.getUTCFullYear(), Math.floor(now.getUTCMonth() / 3) * 3, 1));
+      from = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          Math.floor(now.getUTCMonth() / 3) * 3,
+          1,
+        ),
+      );
     } else {
       from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     }
-    const to = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + months, from.getUTCDate()));
+    const to = new Date(
+      Date.UTC(
+        from.getUTCFullYear(),
+        from.getUTCMonth() + months,
+        from.getUTCDate(),
+      ),
+    );
     return { from, to };
   }
 
@@ -111,7 +198,10 @@ export class AdminService implements OnModuleInit {
    * rate service at generation time (the per-transaction execution rate is not
    * stored); currencies that cannot be converted are listed, never invented.
    */
-  async generateCbnComplianceReport(period: CbnReportPeriod = 'monthly', periodStart?: string) {
+  async generateCbnComplianceReport(
+    period: CbnReportPeriod = 'monthly',
+    periodStart?: string,
+  ) {
     const { from, to } = this.cbnReportWindow(period, periodStart);
 
     const completed = await this.transactionsRepository
@@ -140,17 +230,22 @@ export class AdminService implements OnModuleInit {
         transactionCount: Number(row.count ?? 0),
         volume,
         usdRate,
-        volumeUsd: usdRate === null ? null : Number((volume * usdRate).toFixed(2)),
+        volumeUsd:
+          usdRate === null ? null : Number((volume * usdRate).toFixed(2)),
       });
     }
 
-    const unconvertedCurrencies = currencyBreakdown.filter((c) => c.usdRate === null).map((c) => c.currency);
+    const unconvertedCurrencies = currencyBreakdown
+      .filter((c) => c.usdRate === null)
+      .map((c) => c.currency);
     const totalTransactionVolumeUsd = Number(
-      currencyBreakdown.reduce((sum, c) => sum + (c.volumeUsd ?? 0), 0).toFixed(2),
+      currencyBreakdown
+        .reduce((sum, c) => sum + (c.volumeUsd ?? 0), 0)
+        .toFixed(2),
     );
 
     const flaggedAmlIncidents = await this.alertsRepository.count({
-      where: { createdAt: Between(from, new Date(to.getTime() - 1)) } as any,
+      where: { createdAt: Between(from, new Date(to.getTime() - 1)) },
     });
 
     const kycRow = await this.kycRepository
@@ -162,7 +257,9 @@ export class AdminService implements OnModuleInit {
 
     return {
       reportType:
-        period === 'quarterly' ? 'CBN_QUARTERLY_COMPLIANCE_FILING' : 'CBN_MONTHLY_COMPLIANCE_FILING',
+        period === 'quarterly'
+          ? 'CBN_QUARTERLY_COMPLIANCE_FILING'
+          : 'CBN_MONTHLY_COMPLIANCE_FILING',
       period,
       window: { from: from.toISOString(), to: to.toISOString() },
       generatedAt: new Date().toISOString(),
@@ -170,7 +267,10 @@ export class AdminService implements OnModuleInit {
         totalTransactionVolumeUsd,
         usdVolumeComplete: unconvertedCurrencies.length === 0,
         unconvertedCurrencies,
-        totalTransactionsCount: currencyBreakdown.reduce((sum, c) => sum + c.transactionCount, 0),
+        totalTransactionsCount: currencyBreakdown.reduce(
+          (sum, c) => sum + c.transactionCount,
+          0,
+        ),
         flaggedAmlIncidents,
         kycApprovedUsersCount: Number(kycRow?.count ?? 0),
       },
@@ -197,13 +297,31 @@ export class AdminService implements OnModuleInit {
     endDate?: string;
     page?: number;
     limit?: number;
-  }): Promise<{ items: Transaction[]; total: number; page: number; limit: number }> {
-    const { userId, status, currency, startDate, endDate, page = 1, limit = 20 } = filters;
+  }): Promise<{
+    items: Transaction[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const {
+      userId,
+      status,
+      currency,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 20,
+    } = filters;
 
     const parsedStart = startDate ? new Date(startDate) : undefined;
     const parsedEnd = endDate ? new Date(endDate) : undefined;
-    if ((parsedStart && Number.isNaN(parsedStart.getTime())) || (parsedEnd && Number.isNaN(parsedEnd.getTime()))) {
-      throw new BadRequestException('startDate and endDate must be valid ISO 8601 dates');
+    if (
+      (parsedStart && Number.isNaN(parsedStart.getTime())) ||
+      (parsedEnd && Number.isNaN(parsedEnd.getTime()))
+    ) {
+      throw new BadRequestException(
+        'startDate and endDate must be valid ISO 8601 dates',
+      );
     }
     if (parsedStart && parsedEnd && parsedStart > parsedEnd) {
       throw new BadRequestException('startDate must not be after endDate');
@@ -218,7 +336,9 @@ export class AdminService implements OnModuleInit {
       .take(limit);
 
     if (userId) {
-      qb.andWhere('(tx.senderId = :uid OR tx.receiverId = :uid)', { uid: userId });
+      qb.andWhere('(tx.senderId = :uid OR tx.receiverId = :uid)', {
+        uid: userId,
+      });
     }
     if (status) {
       qb.andWhere('tx.status = :status', { status });
@@ -232,7 +352,9 @@ export class AdminService implements OnModuleInit {
         endDate: new Date(endDate),
       });
     } else if (startDate) {
-      qb.andWhere('tx.createdAt >= :startDate', { startDate: new Date(startDate) });
+      qb.andWhere('tx.createdAt >= :startDate', {
+        startDate: new Date(startDate),
+      });
     } else if (endDate) {
       qb.andWhere('tx.createdAt <= :endDate', { endDate: new Date(endDate) });
     }
@@ -248,7 +370,9 @@ export class AdminService implements OnModuleInit {
     reason?: string,
     manager?: EntityManager,
   ): Promise<Transaction> {
-    const transactionsRepo = manager ? manager.getRepository(Transaction) : this.transactionsRepository;
+    const transactionsRepo = manager
+      ? manager.getRepository(Transaction)
+      : this.transactionsRepository;
     const transaction = await transactionsRepo.findOne({
       where: { id: transactionId },
     });
@@ -289,12 +413,14 @@ export class AdminService implements OnModuleInit {
   }
 
   /** Run `fn` against the users repository inside one transaction (when a manager is available). */
-  private async inUserTransaction<T>(fn: (repo: Repository<User>) => Promise<T>): Promise<T> {
-    const manager = (this.usersRepository as unknown as { manager?: { transaction?: Function } }).manager;
-    if (manager?.transaction) {
-      return manager.transaction((m: { getRepository: (e: unknown) => Repository<User> }) =>
-        fn(m.getRepository(User)),
-      ) as Promise<T>;
+  private async inUserTransaction<T>(
+    fn: (repo: Repository<User>) => Promise<T>,
+  ): Promise<T> {
+    const manager = this.usersRepository.manager;
+    if (manager && typeof manager.transaction === 'function') {
+      return manager.transaction((transactionManager) =>
+        fn(transactionManager.getRepository(User)),
+      );
     }
     return fn(this.usersRepository);
   }
@@ -311,9 +437,15 @@ export class AdminService implements OnModuleInit {
     removesActiveAdmin: boolean,
   ): Promise<void> {
     if (target.id === actorId) {
-      throw new ForbiddenException('Admins cannot change their own role or status');
+      throw new ForbiddenException(
+        'Admins cannot change their own role or status',
+      );
     }
-    if (removesActiveAdmin && target.role === UserRole.ADMIN && target.isActive) {
+    if (
+      removesActiveAdmin &&
+      target.role === UserRole.ADMIN &&
+      target.isActive
+    ) {
       const otherAdmins = await repo.count({
         where: { role: UserRole.ADMIN, isActive: true, id: Not(target.id) },
       });
@@ -330,15 +462,33 @@ export class AdminService implements OnModuleInit {
     reason?: string,
     manager?: EntityManager,
   ): Promise<User> {
-    const usersRepo = manager ? manager.getRepository(User) : this.usersRepository;
+    const usersRepo = manager
+      ? manager.getRepository(User)
+      : this.usersRepository;
     const user = await usersRepo.findOne({
       where: { id: targetUserId },
     });
+    if (!user) {
+      throw new NotFoundException(`User ${targetUserId} not found`);
+    }
+    await this.assertPrivilegeChangeAllowed(
+      usersRepo,
+      user,
+      adminUserId,
+      !isActive,
+    );
 
-    this.events?.emit(TOKEN_VERSION_CHANGED_EVENT, { userId: targetUserId });
+    const before = {
+      isActive: user.isActive,
+      role: user.role,
+      kycStatus: user.kycStatus,
+      email: user.email,
+    };
 
     user.isActive = isActive;
+    user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     const updated = await usersRepo.save(user);
+    this.events?.emit(TOKEN_VERSION_CHANGED_EVENT, { userId: targetUserId });
 
     await this.auditService.log({
       userId: adminUserId,
@@ -365,7 +515,9 @@ export class AdminService implements OnModuleInit {
     reason?: string,
   ): Promise<User> {
     if (!reason || reason.trim().length < 5) {
-      throw new BadRequestException('A reason of at least 5 characters is required for role changes');
+      throw new BadRequestException(
+        'A reason of at least 5 characters is required for role changes',
+      );
     }
 
     const { before, updated } = await this.inUserTransaction(async (repo) => {
@@ -373,7 +525,12 @@ export class AdminService implements OnModuleInit {
       if (!user) {
         throw new NotFoundException(`User ${targetUserId} not found`);
       }
-      await this.assertPrivilegeChangeAllowed(repo, user, adminUserId, newRole !== UserRole.ADMIN);
+      await this.assertPrivilegeChangeAllowed(
+        repo,
+        user,
+        adminUserId,
+        newRole !== UserRole.ADMIN,
+      );
 
       const snapshot = {
         isActive: user.isActive,
@@ -419,7 +576,11 @@ export class AdminService implements OnModuleInit {
     return result;
   }
 
-  async updateSpread(pair: string, spreadPercentage: number, adminUserId: string) {
+  async updateSpread(
+    pair: string,
+    spreadPercentage: number,
+    adminUserId: string,
+  ) {
     const upperPair = pair.toUpperCase();
     this.spreadsMap.set(upperPair, spreadPercentage);
     await this.auditService.log({
@@ -441,7 +602,11 @@ export class AdminService implements OnModuleInit {
    * admin as the RFC 8693 actor (`act.sub`) and `impersonation: true`;
    * `ImpersonationGuard` then refuses every state-changing request made with it.
    */
-  async impersonateUser(targetUserId: string, adminUserId: string, reason: string) {
+  async impersonateUser(
+    targetUserId: string,
+    adminUserId: string,
+    reason: string,
+  ) {
     if (!adminUserId) {
       throw new ForbiddenException('An authenticated admin is required');
     }
@@ -449,10 +614,14 @@ export class AdminService implements OnModuleInit {
       throw new ForbiddenException('Impersonation is not available');
     }
 
-    const user = await this.usersRepository.findOne({ where: { id: targetUserId } });
+    const user = await this.usersRepository.findOne({
+      where: { id: targetUserId },
+    });
     if (!user) throw new NotFoundException(`User ${targetUserId} not found`);
     if (user.role === UserRole.ADMIN || user.role === UserRole.COMPLIANCE) {
-      throw new ForbiddenException('Admin and compliance accounts cannot be impersonated');
+      throw new ForbiddenException(
+        'Admin and compliance accounts cannot be impersonated',
+      );
     }
 
     const token = this.jwtService.sign(
@@ -473,7 +642,11 @@ export class AdminService implements OnModuleInit {
       action: 'admin.user.impersonate',
       entityType: 'user',
       entityId: targetUserId,
-      after: { impersonatedUserId: targetUserId, impersonatedEmail: user.email, ttl: AdminService.IMPERSONATION_TTL },
+      after: {
+        impersonatedUserId: targetUserId,
+        impersonatedEmail: user.email,
+        ttl: AdminService.IMPERSONATION_TTL,
+      },
       reason,
     });
 

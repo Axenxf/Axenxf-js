@@ -1,7 +1,10 @@
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { ImpersonationGuard } from '../auth/impersonation.guard';
-import { getRequestActorId, requestActorStorage } from '../common/context/request-actor.storage';
+import {
+  getRequestActorId,
+  requestActorStorage,
+} from '../common/context/request-actor.storage';
 import { AuditService } from '../audit/audit.service';
 
 function build(target: Record<string, unknown> | null, withJwt = true) {
@@ -9,19 +12,35 @@ function build(target: Record<string, unknown> | null, withJwt = true) {
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
   const jwt = { sign: jest.fn().mockReturnValue('signed.jwt') };
   const service = new AdminService(
-    users as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+    users as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
     audit as any,
+    undefined,
     (withJwt ? jwt : undefined) as any,
   );
   return { service, users, audit, jwt };
 }
 
 describe('AdminService.impersonateUser (#1356)', () => {
-  const user = { id: 'u1', email: 'u@x.com', role: 'user', isEmailVerified: true };
+  const user = {
+    id: 'u1',
+    email: 'u@x.com',
+    role: 'user',
+    isEmailVerified: true,
+  };
 
   it('issues a real, short-lived access token carrying the actor claim', async () => {
     const { service, jwt, audit } = build(user);
-    const res = await service.impersonateUser('u1', 'admin-1', 'Reproducing a reported bug');
+    const res = await service.impersonateUser(
+      'u1',
+      'admin-1',
+      'Reproducing a reported bug',
+    );
 
     expect(res.token).toBe('signed.jwt');
     expect(res.readOnly).toBe(true);
@@ -35,22 +54,32 @@ describe('AdminService.impersonateUser (#1356)', () => {
       { expiresIn: '15m' },
     );
     expect(audit.log).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'admin-1', reason: 'Reproducing a reported bug' }),
+      expect.objectContaining({
+        userId: 'admin-1',
+        reason: 'Reproducing a reported bug',
+      }),
     );
   });
 
-  it.each(['admin', 'compliance'])('refuses to impersonate a %s account', async (role) => {
-    const { service, jwt } = build({ ...user, role });
-    await expect(service.impersonateUser('u1', 'admin-1', 'A long enough reason')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
-    expect(jwt.sign).not.toHaveBeenCalled();
-  });
+  it.each(['admin', 'compliance'])(
+    'refuses to impersonate a %s account',
+    async (role) => {
+      const { service, jwt } = build({ ...user, role });
+      await expect(
+        service.impersonateUser('u1', 'admin-1', 'A long enough reason'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(jwt.sign).not.toHaveBeenCalled();
+    },
+  );
 
   it('requires an authenticated admin', async () => {
     const { service } = build(user);
     await expect(
-      service.impersonateUser('u1', undefined as unknown as string, 'A long enough reason'),
+      service.impersonateUser(
+        'u1',
+        undefined as unknown as string,
+        'A long enough reason',
+      ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
@@ -68,24 +97,44 @@ describe('ImpersonationGuard', () => {
   });
 
   it('allows reads in an impersonated session', () => {
-    expect(guard.canActivate(ctx('GET', { id: 'u1', impersonation: true, actorId: 'admin-1' }))).toBe(true);
+    expect(
+      guard.canActivate(
+        ctx('GET', { id: 'u1', impersonation: true, actorId: 'admin-1' }),
+      ),
+    ).toBe(true);
   });
 
-  it.each(['POST', 'PATCH', 'PUT', 'DELETE'])('blocks %s in an impersonated session', (method) => {
-    expect(() => guard.canActivate(ctx(method, { id: 'u1', impersonation: true, actorId: 'admin-1' }))).toThrow(
-      ForbiddenException,
-    );
-  });
+  it.each(['POST', 'PATCH', 'PUT', 'DELETE'])(
+    'blocks %s in an impersonated session',
+    (method) => {
+      expect(() =>
+        guard.canActivate(
+          ctx(method, { id: 'u1', impersonation: true, actorId: 'admin-1' }),
+        ),
+      ).toThrow(ForbiddenException);
+    },
+  );
 
   it('records the actor for audit entries written during an impersonated request', async () => {
     await requestActorStorage.run({ actorId: 'admin-1' }, async () => {
-      const repo = { create: jest.fn((v) => v), save: jest.fn(async (v) => v) };
+      const repo = {
+        create: jest.fn((value: unknown) => value),
+        save: jest.fn((value: unknown) => Promise.resolve(value)),
+      };
       const audit = new AuditService(repo as any);
-      await audit.log({ action: 'wallet.view', entityType: 'wallet', userId: 'u1' });
+      await audit.log({
+        action: 'wallet.view',
+        entityType: 'wallet',
+        userId: 'u1',
+      });
       expect(getRequestActorId()).toBe('admin-1');
-      expect(repo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ after: expect.objectContaining({ impersonatedBy: 'admin-1' }) }),
-      );
+      const expectedActor: unknown = expect.objectContaining({
+        impersonatedBy: 'admin-1',
+      });
+      const expectedAfter: unknown = expect.objectContaining({
+        after: expectedActor,
+      });
+      expect(repo.create).toHaveBeenCalledWith(expectedAfter);
     });
   });
 });
