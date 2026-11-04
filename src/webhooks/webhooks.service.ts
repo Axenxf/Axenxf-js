@@ -44,6 +44,8 @@ export interface PaginatedDeliveries {
   limit: number;
 }
 
+const RETRY_SWEEP_BATCH_SIZE = 100;
+
 export const DEFAULT_DELIVERY_PAGE_SIZE = 20;
 export const MAX_DELIVERY_PAGE_SIZE = 100;
 
@@ -302,21 +304,85 @@ export class WebhooksService {
         }),
       );
 
-      await this.webhooksQueue.add(
-        'deliver',
-        { deliveryId: delivery.id },
-        {
-          jobId: delivery.id,
-          attempts: Number(process.env.WEBHOOK_MAX_ATTEMPTS || '5'),
-          backoff: {
-            type: 'exponential',
-            delay: Number(process.env.WEBHOOK_BACKOFF_DELAY_MS || '1000'),
-          },
-          removeOnComplete: true,
-          removeOnFail: true,
-        },
-      );
+      await this.enqueueDelivery(delivery.id, delivery.id);
     }
+  }
+
+  private enqueueDelivery(deliveryId: string, jobId: string) {
+    return this.webhooksQueue.add(
+      'deliver',
+      { deliveryId },
+      {
+        jobId,
+        attempts: Number(process.env.WEBHOOK_MAX_ATTEMPTS || '5'),
+        backoff: {
+          type: 'exponential',
+          delay: Number(process.env.WEBHOOK_BACKOFF_DELAY_MS || '1000'),
+        },
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
+    );
+  }
+
+  async recoverFailedDeliveries(): Promise<number> {
+    const failedDeliveries = await this.deliveriesRepository.find({
+      where: { status: WebhookDeliveryStatus.FAILED },
+      order: { createdAt: 'ASC' },
+      take: RETRY_SWEEP_BATCH_SIZE,
+    });
+
+    let recovered = 0;
+    for (const delivery of failedDeliveries) {
+      if (await this.retryDelivery(delivery)) recovered += 1;
+    }
+    return recovered;
+  }
+
+  async manualRetry(
+    deliveryId: string,
+    ownerId: string,
+  ): Promise<WebhookDelivery> {
+    const delivery = await this.findDeliveryForOwner(deliveryId, ownerId);
+    if (delivery.status === WebhookDeliveryStatus.PENDING) {
+      throw new ConflictException('Webhook delivery is already pending');
+    }
+    if (delivery.status === WebhookDeliveryStatus.DELIVERED) {
+      throw new ConflictException('Delivered webhooks cannot be retried');
+    }
+    if (!(await this.retryDelivery(delivery))) {
+      throw new ConflictException('Webhook delivery retry limit reached');
+    }
+    return delivery;
+  }
+
+  private async retryDelivery(delivery: WebhookDelivery): Promise<boolean> {
+    const retryCount = delivery.retryCount ?? 0;
+    const maxRetries = delivery.maxRetries ?? 3;
+    if (retryCount >= maxRetries) return false;
+
+    delivery.retryCount = retryCount + 1;
+    delivery.status = WebhookDeliveryStatus.PENDING;
+    delivery.errorMessage = null;
+    await this.deliveriesRepository.save(delivery);
+
+    try {
+      await this.enqueueDelivery(
+        delivery.id,
+        `retry-${delivery.id}-${delivery.retryCount}-${Date.now()}`,
+      );
+    } catch (error) {
+      delivery.retryCount = retryCount;
+      delivery.status = WebhookDeliveryStatus.FAILED;
+      delivery.errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Unable to queue webhook retry';
+      await this.deliveriesRepository.save(delivery);
+      throw error;
+    }
+
+    return true;
   }
 
   /**

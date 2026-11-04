@@ -26,7 +26,17 @@ describe('WebhooksService.listDeliveries (#1446)', () => {
   let deliveriesRepository: {
     findAndCount: jest.Mock<Promise<[unknown[], number]>, [FindManyOptions]>;
     delete: jest.Mock<Promise<{ affected?: number }>, [FindManyOptions]>;
+    find: jest.Mock<Promise<WebhookDelivery[]>, [FindManyOptions]>;
+    save: jest.Mock<Promise<WebhookDelivery>, [WebhookDelivery]>;
+    createQueryBuilder: jest.Mock;
   };
+  let deliveryQuery: {
+    innerJoin: jest.Mock;
+    where: jest.Mock;
+    andWhere: jest.Mock;
+    getOne: jest.Mock;
+  };
+  let webhooksQueue: { add: jest.Mock };
 
   const endpoint = { id: 'ep-1', ownerId: 'owner-1' } as WebhookEndpoint;
 
@@ -35,6 +45,12 @@ describe('WebhooksService.listDeliveries (#1446)', () => {
       find: jest.fn().mockResolvedValue([endpoint]),
       findOne: jest.fn(),
     };
+    deliveryQuery = {
+      innerJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getOne: jest.fn(),
+    };
     deliveriesRepository = {
       findAndCount: jest
         .fn<Promise<[unknown[], number]>, [FindManyOptions]>()
@@ -42,7 +58,15 @@ describe('WebhooksService.listDeliveries (#1446)', () => {
       delete: jest
         .fn<Promise<{ affected?: number }>, [FindManyOptions]>()
         .mockResolvedValue({ affected: 0 }),
+      find: jest
+        .fn<Promise<WebhookDelivery[]>, [FindManyOptions]>()
+        .mockResolvedValue([]),
+      save: jest
+        .fn<Promise<WebhookDelivery>, [WebhookDelivery]>()
+        .mockImplementation((delivery) => Promise.resolve(delivery)),
+      createQueryBuilder: jest.fn(() => deliveryQuery),
     };
+    webhooksQueue = { add: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -55,7 +79,7 @@ describe('WebhooksService.listDeliveries (#1446)', () => {
           provide: getRepositoryToken(WebhookDelivery),
           useValue: deliveriesRepository,
         },
-        { provide: getQueueToken('webhooks'), useValue: { add: jest.fn() } },
+        { provide: getQueueToken('webhooks'), useValue: webhooksQueue },
       ],
     }).compile();
 
@@ -146,6 +170,66 @@ describe('WebhooksService.listDeliveries (#1446)', () => {
 
       expect(deleted).toBe(0);
       expect(deliveriesRepository.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('retry', () => {
+    it('retries only deliveries owned by the requesting user', async () => {
+      const delivery = {
+        id: 'delivery-1',
+        status: WebhookDeliveryStatus.FAILED,
+        retryCount: 0,
+        maxRetries: 2,
+      } as WebhookDelivery;
+      deliveryQuery.getOne.mockResolvedValue(delivery);
+
+      await service.manualRetry('delivery-1', 'owner-1');
+
+      expect(deliveryQuery.andWhere).toHaveBeenCalledWith(
+        'endpoint.ownerId = :ownerId',
+        { ownerId: 'owner-1' },
+      );
+      const manualRetryJobId: unknown =
+        expect.stringContaining('retry-delivery-1');
+      const manualRetryOptions: unknown = expect.objectContaining({
+        jobId: manualRetryJobId,
+      });
+      expect(webhooksQueue.add).toHaveBeenCalledWith(
+        'deliver',
+        { deliveryId: 'delivery-1' },
+        manualRetryOptions,
+      );
+      expect(delivery.retryCount).toBe(1);
+      expect(delivery.status).toBe(WebhookDeliveryStatus.PENDING);
+    });
+
+    it('recovers failed deliveries only below their retry limit', async () => {
+      const retryable = {
+        id: 'retryable',
+        status: WebhookDeliveryStatus.FAILED,
+        retryCount: 0,
+        maxRetries: 1,
+      } as WebhookDelivery;
+      const exhausted = {
+        id: 'exhausted',
+        status: WebhookDeliveryStatus.FAILED,
+        retryCount: 1,
+        maxRetries: 1,
+      } as WebhookDelivery;
+      deliveriesRepository.find.mockResolvedValue([retryable, exhausted]);
+
+      await expect(service.recoverFailedDeliveries()).resolves.toBe(1);
+      expect(webhooksQueue.add).toHaveBeenCalledTimes(1);
+      const recoveryJobId: unknown = expect.stringContaining('retry-retryable');
+      const recoveryOptions: unknown = expect.objectContaining({
+        jobId: recoveryJobId,
+      });
+      expect(webhooksQueue.add).toHaveBeenCalledWith(
+        'deliver',
+        { deliveryId: 'retryable' },
+        recoveryOptions,
+      );
+      expect(exhausted.retryCount).toBe(1);
     });
   });
 });
