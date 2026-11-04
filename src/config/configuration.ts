@@ -25,6 +25,10 @@ export default () => {
   const nodeEnv = process.env.NODE_ENV || 'development';
   const port = parseInt(process.env.PORT || '3000', 10);
   const swaggerEnabled = process.env.SWAGGER_ENABLED === 'true';
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
   const bodyLimitJson = parseInt(process.env.BODY_LIMIT_JSON || '10', 10);
   const bodyLimitUrlencoded = parseInt(
     process.env.BODY_LIMIT_URLENCODED || '10',
@@ -112,6 +116,7 @@ export default () => {
       nodeEnv,
       port,
       swaggerEnabled,
+      allowedOrigins,
       isProduction: nodeEnv === 'production',
       isDevelopment: nodeEnv === 'development',
       isTest: nodeEnv === 'test',
@@ -295,9 +300,7 @@ export default () => {
 
     // Swap / FX slippage — validated via Zod; never read process.env directly
     swap: {
-      slippagePercent: parseFloat(
-        process.env.SWAP_SLIPPAGE_PERCENT || '0.005',
-      ),
+      slippagePercent: parseFloat(process.env.SWAP_SLIPPAGE_PERCENT || '0.005'),
       previewCacheTtlSeconds: parseInt(
         process.env.SWAP_PREVIEW_CACHE_TTL_SECONDS || '30',
         10,

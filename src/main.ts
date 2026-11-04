@@ -26,18 +26,25 @@ async function bootstrap() {
   app
     .getHttpAdapter()
     .getInstance()
-    .set('trust proxy', trustProxy === 'false' ? false : /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
+    .set(
+      'trust proxy',
+      trustProxy === 'false'
+        ? false
+        : /^\d+$/.test(trustProxy)
+          ? Number(trustProxy)
+          : trustProxy,
+    );
 
   const configService = app.get(ConfigService<Configuration>);
-  const port = configService.get<number>('app.port');
+  const appConfig = configService.get<Configuration['app']>('app');
+  const limits = configService.get<Configuration['limits']>('limits');
+  const port = appConfig?.port;
   if (!port || isNaN(port)) {
     throw new Error(`Invalid PORT: ${port}`);
   }
-  const jsonLimit = configService.get<number>('limits.json') ?? 10 * 1024 * 1024;
-  const urlencodedLimit =
-    configService.get<number>('limits.urlencoded') ?? 10 * 1024 * 1024;
-  const allowedOrigins =
-    configService.get<string>('ALLOWED_ORIGINS')?.split(',').filter(Boolean) ?? [];
+  const jsonLimit = limits?.json ?? 10 * 1024 * 1024;
+  const urlencodedLimit = limits?.urlencoded ?? 10 * 1024 * 1024;
+  const allowedOrigins = appConfig?.allowedOrigins ?? [];
 
   app.use(express.json({ limit: jsonLimit }));
   app.use(express.urlencoded({ limit: urlencodedLimit, extended: true }));
@@ -88,8 +95,8 @@ async function bootstrap() {
   app.useGlobalFilters(new GlobalExceptionFilter());
   app.enableShutdownHooks();
 
-  const nodeEnv = configService.get<string>('app.nodeEnv');
-  const swaggerEnabled = configService.get<boolean>('app.swaggerEnabled');
+  const nodeEnv = appConfig?.nodeEnv;
+  const swaggerEnabled = appConfig?.swaggerEnabled;
   if (nodeEnv !== 'production' || swaggerEnabled) {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Axenxf API')
