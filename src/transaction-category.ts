@@ -2,12 +2,12 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class TransactionCategoryService {
-  private categories = {
-    'salary': 'income',
-    'investment': 'income',
-    'groceries': 'expense',
-    'utilities': 'expense',
-    'trading': 'trading'
+  private categories: Record<string, string> = {
+    salary: 'income',
+    investment: 'income',
+    groceries: 'expense',
+    utilities: 'expense',
+    trading: 'trading',
   };
 
   categorize(transactionName: string): string {

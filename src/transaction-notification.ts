@@ -2,10 +2,10 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class TransactionNotificationService {
-  private thresholds = {
+  private thresholds: Record<string, number> = {
     deposit: 1000,
     withdrawal: 1000,
-    swap: 500
+    swap: 500,
   };
 
   setThreshold(type: string, amount: number) {
