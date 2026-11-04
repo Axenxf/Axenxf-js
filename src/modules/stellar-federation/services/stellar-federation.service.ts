@@ -16,14 +16,26 @@ export class StellarFederationService {
 
   async createAddress(
     userId: string,
-    data: { name: string; domain: string; stellarAddress: string; memo?: string; memoType?: string },
+    data: {
+      name: string;
+      domain: string;
+      stellarAddress: string;
+      memo?: string;
+      memoType?: string;
+    },
   ): Promise<FederationAddressEntity> {
     const existing = await this.federationRepo.findOne({
-      where: { domain: data.domain, stellarAddress: data.stellarAddress, isActive: true },
+      where: {
+        domain: data.domain,
+        stellarAddress: data.stellarAddress,
+        isActive: true,
+      },
     });
 
     if (existing) {
-      throw new ConflictException('Federation address already exists for this domain and stellar address');
+      throw new ConflictException(
+        'Federation address already exists for this domain and stellar address',
+      );
     }
 
     const address = this.federationRepo.create({
@@ -39,11 +51,13 @@ export class StellarFederationService {
     return this.federationRepo.save(address);
   }
 
-  async resolveAddress(query: string): Promise<FederationAddressEntity | null> {
+  async resolveAddress(query: string): Promise<FederationAddressEntity> {
     // Support user*domain.com format
     const starIndex = query.indexOf('*');
     if (starIndex === -1) {
-      throw new NotFoundException('Invalid federation address format. Expected user*domain.com');
+      throw new NotFoundException(
+        'Invalid federation address format. Expected user*domain.com',
+      );
     }
 
     const name = query.substring(0, starIndex);

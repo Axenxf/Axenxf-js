@@ -5,26 +5,41 @@ describe('StellarFederationService', () => {
   const findOneMock = jest.fn();
   const findMock = jest.fn();
   const saveMock = jest.fn();
-  const repository = { findOne: findOneMock, find: findMock, save: saveMock, create: jest.fn((x) => x) } as never;
+  const repository = {
+    findOne: findOneMock,
+    find: findMock,
+    save: saveMock,
+    create: jest.fn((value: unknown) => value),
+  } as never;
   const service = new StellarFederationService(repository);
 
   beforeEach(() => jest.clearAllMocks());
 
   it('resolves a well-formed user*domain.com address', async () => {
-    const address = { id: 'addr-1', stellarAddress: 'alice', domain: 'example.com' };
+    const address = {
+      id: 'addr-1',
+      stellarAddress: 'alice',
+      domain: 'example.com',
+    };
     findOneMock.mockResolvedValue(address);
 
-    await expect(service.resolveAddress('alice*example.com')).resolves.toBe(address);
+    await expect(service.resolveAddress('alice*example.com')).resolves.toBe(
+      address,
+    );
     expect(findOneMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { domain: 'example.com', stellarAddress: 'alice', isActive: true } }),
+      expect.objectContaining({
+        where: { domain: 'example.com', name: 'alice', isActive: true },
+      }),
     );
   });
 
   it('rejects an address with no "*"', async () => {
-    await expect(service.resolveAddress('alice-example.com')).rejects.toThrow(NotFoundException);
+    await expect(service.resolveAddress('alice-example.com')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
-  it('only returns the requesting user\'s addresses', async () => {
+  it("only returns the requesting user's addresses", async () => {
     findMock.mockResolvedValue([{ id: 'a1', userId: 'user-1' }]);
 
     await service.getAddressesByUser('user-1');
@@ -37,7 +52,9 @@ describe('StellarFederationService', () => {
   it('throws NotFoundException instead of deleting when userId does not match', async () => {
     findOneMock.mockResolvedValue(null);
 
-    await expect(service.deleteAddress('addr-1', 'someone-else')).rejects.toThrow(NotFoundException);
+    await expect(
+      service.deleteAddress('addr-1', 'someone-else'),
+    ).rejects.toThrow(NotFoundException);
     expect(saveMock).not.toHaveBeenCalled();
   });
 });
