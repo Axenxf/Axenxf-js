@@ -36,11 +36,17 @@ export class NotificationBatchingService {
   ) {}
 
   private get batchWindowMs(): number {
-    return this.config.get<number>('NOTIFICATION_BATCH_WINDOW_MS', DEFAULT_BATCH_WINDOW_MS);
+    return this.config.get<number>(
+      'NOTIFICATION_BATCH_WINDOW_MS',
+      DEFAULT_BATCH_WINDOW_MS,
+    );
   }
 
   private get batchingEnabled(): boolean {
-    return this.config.get<string>('NOTIFICATION_BATCHING_ENABLED', 'true') === 'true';
+    return (
+      this.config.get<string>('NOTIFICATION_BATCHING_ENABLED', 'true') ===
+      'true'
+    );
   }
 
   private batchKey(userId: string, eventType: NotificationEventType): string {
@@ -78,7 +84,9 @@ export class NotificationBatchingService {
     this.pending.get(key)!.push(entry);
 
     if (!this.batchTimer) {
-      this.batchTimer = setTimeout(() => this.flushBatch(), this.batchWindowMs);
+      this.batchTimer = setTimeout(() => {
+        void this.flushBatch();
+      }, this.batchWindowMs);
     }
 
     this.addToEmailBatch(userId, eventType, payload);
@@ -90,7 +98,11 @@ export class NotificationBatchingService {
     payload: PushPayload,
   ): Promise<void> {
     try {
-      const shouldPush = await this.shouldNotify(userId, NotificationChannel.PUSH, eventType);
+      const shouldPush = await this.shouldNotify(
+        userId,
+        NotificationChannel.PUSH,
+        eventType,
+      );
       if (shouldPush) {
         await this.pushService.sendToUser(userId, payload);
       }
@@ -105,21 +117,29 @@ export class NotificationBatchingService {
     this.pending.clear();
 
     for (const [key, notifications] of entries) {
-      const [userId, eventType] = key.split(':') as [string, NotificationEventType];
+      const [userId, eventType] = key.split(':') as [
+        string,
+        NotificationEventType,
+      ];
       const deduped = this.deduplicate(notifications);
       const latest = deduped[deduped.length - 1];
 
       if (!latest) continue;
 
       try {
-        const shouldPush = await this.shouldNotify(userId, NotificationChannel.PUSH, eventType as NotificationEventType);
+        const shouldPush = await this.shouldNotify(
+          userId,
+          NotificationChannel.PUSH,
+          eventType,
+        );
         if (shouldPush) {
-          const batchPayload = deduped.length > 1
-            ? {
-                ...latest.payload,
-                body: `${latest.payload.body} (+${deduped.length - 1} more)`,
-              }
-            : latest.payload;
+          const batchPayload =
+            deduped.length > 1
+              ? {
+                  ...latest.payload,
+                  body: `${latest.payload.body} (+${deduped.length - 1} more)`,
+                }
+              : latest.payload;
           await this.pushService.sendToUser(userId, batchPayload);
         }
       } catch (err: any) {
@@ -148,7 +168,9 @@ export class NotificationBatchingService {
     this.emailPending.get(key)!.push(entry);
 
     if (!this.emailTimer) {
-      this.emailTimer = setTimeout(() => this.flushEmailBatch(), EMAIL_BATCH_WINDOW_MS);
+      this.emailTimer = setTimeout(() => {
+        void this.flushEmailBatch();
+      }, EMAIL_BATCH_WINDOW_MS);
     }
   }
 
@@ -159,8 +181,14 @@ export class NotificationBatchingService {
 
     for (const [, notifications] of entries) {
       if (notifications.length === 0) continue;
-      const userId = notifications[0].userId;
-      const shouldEmail = await this.shouldNotify(userId, NotificationChannel.EMAIL, notifications[0].eventType);
+      const firstNotification = notifications[0];
+      if (!firstNotification) continue;
+      const userId = firstNotification.userId;
+      const shouldEmail = await this.shouldNotify(
+        userId,
+        NotificationChannel.EMAIL,
+        firstNotification.eventType,
+      );
       if (!shouldEmail) continue;
 
       this.logger.log(
@@ -169,7 +197,9 @@ export class NotificationBatchingService {
     }
   }
 
-  private deduplicate(notifications: PendingNotification[]): PendingNotification[] {
+  private deduplicate(
+    notifications: PendingNotification[],
+  ): PendingNotification[] {
     const seen = new Set<string>();
     const result: PendingNotification[] = [];
     for (const n of notifications) {
