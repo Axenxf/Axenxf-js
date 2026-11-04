@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException, ForbiddenException, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ForbiddenException,
+  Optional,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'crypto';
@@ -99,7 +104,9 @@ export class AuthService {
   private dummyHash?: Promise<string>;
 
   private getDummyHash(): Promise<string> {
-    this.dummyHash ??= this.passwordService.hash('Axenxf-timing-equaliser-password');
+    this.dummyHash ??= this.passwordService.hash(
+      'Axenxf-timing-equaliser-password',
+    );
     return this.dummyHash;
   }
 
@@ -114,18 +121,29 @@ export class AuthService {
 
     // Legacy SHA-256 hash — verify with old method, then migrate to bcrypt
     const expected = Buffer.from(user.passwordHash);
-    const actual = Buffer.from(createHash('sha256').update(password).digest('hex'));
-    if (expected.length === actual.length && timingSafeEqual(expected, actual)) {
+    const actual = Buffer.from(
+      createHash('sha256').update(password).digest('hex'),
+    );
+    if (
+      expected.length === actual.length &&
+      timingSafeEqual(expected, actual)
+    ) {
       const bcryptHash = await this.passwordService.hash(password);
       user.passwordHash = bcryptHash;
-      await this.usersService.update?.(user.id, { passwordHash: bcryptHash } as any);
+      await this.usersService.update?.(user.id, {
+        passwordHash: bcryptHash,
+      } as any);
       return true;
     }
     return false;
   }
 
   /** Count a failed attempt atomically and lock the account at the threshold. */
-  private async recordFailedAttempt(user: { id: string; email: string; lockedUntil?: Date | null }) {
+  private async recordFailedAttempt(user: {
+    id: string;
+    email: string;
+    lockedUntil?: Date | null;
+  }) {
     const result = await this.usersService.recordFailedLogin(
       user.id,
       MAX_FAILED_ATTEMPTS,
@@ -133,7 +151,10 @@ export class AuthService {
     );
 
     // Notify only on the attempt that crossed the threshold.
-    if (result.failedLoginAttempts === MAX_FAILED_ATTEMPTS && result.lockedUntil) {
+    if (
+      result.failedLoginAttempts === MAX_FAILED_ATTEMPTS &&
+      result.lockedUntil
+    ) {
       try {
         await this.mailService?.sendAccountLockedEmail({
           to: user.email,
@@ -166,7 +187,10 @@ export class AuthService {
     if (user) {
       passwordMatches = await this.verifyPassword(user, dto.password);
     } else {
-      await this.passwordService.verify(dto.password, await this.getDummyHash());
+      await this.passwordService.verify(
+        dto.password,
+        await this.getDummyHash(),
+      );
     }
 
     const now = new Date();
@@ -198,12 +222,21 @@ export class AuthService {
     const termsAccepted = await this.termsService.hasAcceptedCurrent(user.id);
 
     // Suspended (isActive=false) and deactivated users get the same response.
-    const isDeactivated = await this.deactivationService?.isUserDeactivated(user.id);
+    const isDeactivated = await this.deactivationService?.isUserDeactivated(
+      user.id,
+    );
     if (user.isActive === false || isDeactivated) {
-      throw new UnauthorizedException('Account has been deactivated by an administrator');
+      throw new UnauthorizedException(
+        'Account has been deactivated by an administrator',
+      );
+    }
+    if (user.require2fa) {
+      throw new ForbiddenException('Two-factor authentication is required');
     }
 
-    await this.termsService.ensureAccepted(user.id);
+    if (termsAccepted) {
+      await this.termsService.ensureAccepted(user.id);
+    }
 
     // Successful login — reset failed attempts and any expired lockout
     // (column-only update so a concurrent lock is never overwritten).
@@ -220,7 +253,19 @@ export class AuthService {
       userAgent: context.userAgent,
     });
 
-    return this.issueToken(user.id, user.email, user.role, user.tokenVersion);
+    const token = this.issueToken(
+      user.id,
+      user.email,
+      user.role,
+      user.tokenVersion,
+    );
+    return termsAccepted
+      ? token
+      : {
+          ...token,
+          requiresAction: 'accept_terms' as const,
+          version: this.termsService.currentVersion(),
+        };
   }
 
   /**
@@ -228,15 +273,28 @@ export class AuthService {
    * with device metadata, so the session shows up in `GET /auth/sessions`.
    */
   private async issueSession(
-    user: { id: string; email: string; role: string },
+    user: { id: string; email: string; role: string; tokenVersion?: number },
     context: { ip?: string; userAgent?: string } = {},
-  ): Promise<{ accessToken: string; refreshToken?: string; refreshTokenExpiresAt?: Date }> {
+  ): Promise<{
+    accessToken: string;
+    refreshToken?: string;
+    refreshTokenExpiresAt?: Date;
+  }> {
     if (!this.refreshTokens) {
-      return this.issueToken(user.id, user.email, user.role);
+      return this.issueToken(user.id, user.email, user.role, user.tokenVersion);
     }
-    const session = await this.refreshTokens.createToken(user.id, parseDeviceInfo(context));
+    const session = await this.refreshTokens.createToken(
+      user.id,
+      parseDeviceInfo(context),
+    );
     return {
-      ...this.issueToken(user.id, user.email, user.role, session.id),
+      ...this.issueToken(
+        user.id,
+        user.email,
+        user.role,
+        user.tokenVersion,
+        session.id,
+      ),
       refreshToken: session.token,
       refreshTokenExpiresAt: session.expiresAt,
     };
@@ -258,7 +316,10 @@ export class AuthService {
     }
 
     try {
-      const payload = this.jwtService.verify(refreshToken) as { sub?: string; typ?: string };
+      const payload = this.jwtService.verify<{
+        sub?: string;
+        typ?: string;
+      }>(refreshToken);
       if (!payload.sub || payload.typ !== TokenType.REFRESH) {
         throw new UnauthorizedException('Invalid refresh token');
       }
@@ -268,9 +329,13 @@ export class AuthService {
         throw new UnauthorizedException('User not found');
       }
 
-      const isDeactivated = await this.deactivationService?.isUserDeactivated(user.id);
+      const isDeactivated = await this.deactivationService?.isUserDeactivated(
+        user.id,
+      );
       if (user.isActive === false || isDeactivated) {
-        throw new UnauthorizedException('Account has been deactivated by an administrator');
+        throw new UnauthorizedException(
+          'Account has been deactivated by an administrator',
+        );
       }
 
       const rotated = await this.refreshTokens.rotateToken(
@@ -284,7 +349,10 @@ export class AuthService {
         refreshTokenExpiresAt: rotated.expiresAt,
       };
     } catch (err) {
-      if (err instanceof ForbiddenException || err instanceof UnauthorizedException) {
+      if (
+        err instanceof ForbiddenException ||
+        err instanceof UnauthorizedException
+      ) {
         throw err;
       }
       throw new UnauthorizedException('Invalid or expired refresh token');
@@ -292,7 +360,11 @@ export class AuthService {
   }
 
   /** End the caller's session: revoke the given refresh token, else the one named by `sid`. */
-  async logout(userId: string, sid?: string, refreshToken?: string): Promise<void> {
+  async logout(
+    userId: string,
+    sid?: string,
+    refreshToken?: string,
+  ): Promise<void> {
     if (!this.refreshTokens) return;
     if (refreshToken) {
       await this.refreshTokens.revokeByRawToken(userId, refreshToken);
@@ -301,9 +373,22 @@ export class AuthService {
     }
   }
 
-  private issueToken(userId: string, email: string, role: string, tokenVersion = 0) {
+  private issueToken(
+    userId: string,
+    email: string,
+    role: string,
+    tokenVersion = 0,
+    sessionId?: string,
+  ) {
     return {
-      accessToken: this.jwtService.sign({ sub: userId, email, role, typ: TokenType.ACCESS, tv: tokenVersion ?? 0 }),
+      accessToken: this.jwtService.sign({
+        sub: userId,
+        email,
+        role,
+        typ: TokenType.ACCESS,
+        tv: tokenVersion,
+        ...(sessionId ? { sid: sessionId } : {}),
+      }),
     };
   }
 }

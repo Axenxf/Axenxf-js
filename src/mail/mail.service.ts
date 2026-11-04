@@ -143,7 +143,10 @@ export class MailService {
     const context = plainToInstance(EmailVerificationTemplateDto, payload, {
       enableImplicitConversion: true,
     });
-    const body = this.getLocalizedTemplate('email-verification', language)({
+    const body = this.getLocalizedTemplate(
+      'email-verification',
+      language,
+    )({
       fullName: context.fullName,
       verificationCode: context.verificationCode,
       expiresMinutes: context.expiresMinutes ?? 10,
@@ -152,7 +155,7 @@ export class MailService {
       title: 'Verify your Axenxf account',
       year: new Date().getFullYear(),
       body,
-    } as MailTemplateContext);
+    });
   }
 
   renderPasswordReset(payload: PasswordResetTemplateDto): string {
@@ -243,7 +246,9 @@ export class MailService {
         html: `<p><a href="${url}">Verify your email</a></p><p>If you did not sign up, ignore this email.</p>`,
       });
     } catch (err) {
-      this.logger.error(`Failed to send verification link: ${(err as Error).message}`);
+      this.logger.error(
+        `Failed to send verification link: ${(err as Error).message}`,
+      );
     }
   }
 
@@ -262,7 +267,9 @@ export class MailService {
           `<p>This link expires in 15 minutes and can be used once. If you did not ask for it, ignore this email.</p>`,
       });
     } catch (err) {
-      this.logger.error(`Failed to send password reset email: ${(err as Error).message}`);
+      this.logger.error(
+        `Failed to send password reset email: ${(err as Error).message}`,
+      );
     }
   }
 
@@ -276,7 +283,25 @@ export class MailService {
         html: this.renderAdminAlertHtml(payload),
       });
     } catch (err) {
-      this.logger.error(`Failed to send admin alert email: ${(err as Error).message}`);
+      this.logger.error(
+        `Failed to send admin alert email: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  async sendAccountLockedEmail(payload: AccountLockedEmail): Promise<void> {
+    if (process.env.NODE_ENV === 'test') return;
+    try {
+      await this.transporter.sendMail({
+        from: process.env.MAIL_FROM,
+        to: payload.to,
+        subject: 'Your Axenxf account is temporarily locked',
+        html: `<p>Your account is locked after ${payload.failedAttempts} unsuccessful sign-in attempts.</p><p>Please try again in ${payload.lockoutMinutes} minutes.</p>`,
+      });
+    } catch (err) {
+      this.logger.error(
+        `Failed to send account lockout email: ${(err as Error).message}`,
+      );
     }
   }
 

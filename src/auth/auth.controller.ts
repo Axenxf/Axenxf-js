@@ -1,4 +1,13 @@
-import { Body, Controller, Headers, HttpCode, HttpStatus, Ip, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Ip,
+  Post,
+} from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import {
   ApiBody,
@@ -9,6 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
+import { PasswordPolicyService } from './password-policy.service';
 import { PasswordResetFlowService } from './password-reset-flow.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -23,6 +33,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly passwordResetFlow: PasswordResetFlowService,
+    private readonly passwordPolicy: PasswordPolicyService,
   ) {}
 
   /** The rules clients should display, straight from the service that enforces them. */
@@ -91,7 +102,9 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @Post('forgot-password')
-  @ApiOperation({ summary: 'Email a password reset link (same response for unknown emails)' })
+  @ApiOperation({
+    summary: 'Email a password reset link (same response for unknown emails)',
+  })
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.passwordResetFlow.forgotPassword(dto.email);
   }
