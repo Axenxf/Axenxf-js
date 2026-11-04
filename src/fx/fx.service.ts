@@ -16,10 +16,14 @@ import { ExchangeRateService } from './exchange-rate.service';
 import { WalletsService } from '../wallet/wallets.service';
 import { AccountFreezeService } from '../modules/account-freeze/services/account-freeze.service';
 
-import { FxQuoteCache, RedisFxQuoteStore, type RedisLikeClient } from './fx-quote-cache';
+import {
+  FxQuoteCache,
+  RedisFxQuoteStore,
+  type RedisLikeClient,
+} from './fx-quote-cache';
 
 export interface ExecuteTradeDto {
-  userId?: string;
+  userId: string;
   fromCurrency: string;
   toCurrency: string;
   fromAmount: number;
@@ -35,12 +39,21 @@ export class FxService {
     private readonly config: ConfigService,
     private readonly rateService: ExchangeRateService,
     private readonly wallets: WalletsService,
+    @Optional() private readonly accountFreezeService?: AccountFreezeService,
     @Optional() @Inject(CACHE_MANAGER) cacheManager?: Cache,
   ) {
     // Share locked quotes across replicas when the cache store is Redis
     // (SET PX to store, GETDEL to redeem); otherwise keep the in-memory store.
-    const client = (cacheManager as unknown as { store?: { client?: RedisLikeClient } } | undefined)?.store?.client;
-    if (client && typeof client.set === 'function' && (typeof client.getdel === 'function' || typeof client.eval === 'function')) {
+    const client = (
+      cacheManager as unknown as
+        | { store?: { client?: RedisLikeClient } }
+        | undefined
+    )?.store?.client;
+    if (
+      client &&
+      typeof client.set === 'function' &&
+      (typeof client.getdel === 'function' || typeof client.eval === 'function')
+    ) {
       FxQuoteCache.use(new RedisFxQuoteStore(client));
     }
   }
@@ -76,8 +89,18 @@ export class FxService {
     const toAmount = parseFloat((dto.fromAmount * rate).toFixed(8));
 
     return this.dataSource.transaction(async (manager) => {
-      await this.wallets.adjustBalance(dto.userId, dto.fromCurrency, -dto.fromAmount, manager);
-      await this.wallets.adjustBalance(dto.userId, dto.toCurrency, toAmount, manager);
+      await this.wallets.adjustBalance(
+        dto.userId,
+        dto.fromCurrency,
+        -dto.fromAmount,
+        manager,
+      );
+      await this.wallets.adjustBalance(
+        dto.userId,
+        dto.toCurrency,
+        toAmount,
+        manager,
+      );
 
       const trade = manager.create(FxTrade, {
         userId: dto.userId,
@@ -88,7 +111,10 @@ export class FxService {
         rate,
       });
       const pairKey = `${dto.fromCurrency.toUpperCase()}/${dto.toCurrency.toUpperCase()}`;
-      this.volumeTracker.set(pairKey, (this.volumeTracker.get(pairKey) || 0) + dto.fromAmount);
+      this.volumeTracker.set(
+        pairKey,
+        (this.volumeTracker.get(pairKey) || 0) + dto.fromAmount,
+      );
       return manager.save(FxTrade, trade);
     });
   }
@@ -100,7 +126,10 @@ export class FxService {
       throw new UnprocessableEntityException('Trade has already been reversed');
     }
 
-    const windowMinutes = this.config.get<number>('fx.reversalWindowMinutes', 5);
+    const windowMinutes = this.config.get<number>(
+      'fx.reversalWindowMinutes',
+      5,
+    );
     const elapsed =
       (Date.now() - new Date(trade.executedAt).getTime()) / 60_000;
 
@@ -111,8 +140,18 @@ export class FxService {
     }
 
     return this.dataSource.transaction(async (manager) => {
-      await this.wallets.adjustBalance(trade.userId, trade.fromCurrency, trade.fromAmount, manager);
-      await this.wallets.adjustBalance(trade.userId, trade.toCurrency, -trade.toAmount, manager);
+      await this.wallets.adjustBalance(
+        trade.userId,
+        trade.fromCurrency,
+        trade.fromAmount,
+        manager,
+      );
+      await this.wallets.adjustBalance(
+        trade.userId,
+        trade.toCurrency,
+        -trade.toAmount,
+        manager,
+      );
 
       trade.reversedAt = new Date();
       return manager.save(FxTrade, trade);
@@ -121,7 +160,7 @@ export class FxService {
 
   private readonly volumeTracker = new Map<string, number>();
 
-  async getVolume(base?: string, target?: string) {
+  getVolume(base?: string, target?: string) {
     if (base && target) {
       const pair = `${base.toUpperCase()}/${target.toUpperCase()}`;
       return { pair, volume: this.volumeTracker.get(pair) || 0 };
@@ -137,8 +176,14 @@ export class FxService {
     return this.rateService.getRate(base, target);
   }
 
-  async getSmartSwapRoute(fromCurrency: string, toCurrency: string, amount: number) {
-    const directRate = (await this.rateService.getRate(fromCurrency, toCurrency)).rate;
+  async getSmartSwapRoute(
+    fromCurrency: string,
+    toCurrency: string,
+    amount: number,
+  ) {
+    const directRate = (
+      await this.rateService.getRate(fromCurrency, toCurrency)
+    ).rate;
     const directOutput = Number((amount * directRate).toFixed(4));
     return {
       bestRoute: [fromCurrency, toCurrency],
