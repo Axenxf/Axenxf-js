@@ -817,21 +817,22 @@ export class TransactionsService implements OnModuleInit {
     }
 
     const tx = await this.findById(id);
-    if (tx.type === 'withdrawal') {
+    const transactionType = tx.metadata?.type;
+    if (transactionType === 'withdrawal') {
       const total = Number(tx.amount) + Number(tx.fee || 0);
       if (tx.metadata && (tx.metadata as any).debitedAt) {
         await this.walletsService.adjustBalance(tx.senderId, tx.currency, +total);
         tx.metadata = { ...(tx.metadata as Record<string, unknown>), debitedAt: undefined };
         await this.txRepo.save(tx);
       }
-    } else if (tx.type === 'swap') {
+    } else if (transactionType === 'swap') {
       const total = Number(tx.amount) + Number(tx.fee || 0);
       if (tx.metadata && (tx.metadata as any).debitedAt) {
         await this.walletsService.adjustBalance(tx.senderId, tx.currency, +total);
         tx.metadata = { ...(tx.metadata as Record<string, unknown>), debitedAt: undefined };
         await this.txRepo.save(tx);
       }
-    } else if (tx.type === 'transfer') {
+    } else if (transactionType === 'transfer') {
       if (tx.metadata && (tx.metadata as any).debitedAt) {
         await this.walletsService.adjustBalance(tx.senderId, tx.currency, +Number(tx.amount));
         tx.metadata = { ...(tx.metadata as Record<string, unknown>), debitedAt: undefined };

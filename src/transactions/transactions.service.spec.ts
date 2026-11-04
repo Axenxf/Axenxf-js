@@ -58,6 +58,7 @@ describe('TransactionsService', () => {
   let service: TransactionsService;
   let limitService: any;
   let feesService: any;
+  let exchangeRateService: any;
   let stellarService: any;
   let configService: any;
   let deactivationService: any;
@@ -75,6 +76,7 @@ describe('TransactionsService', () => {
     events = { emit: jest.fn() } as any;
     limitService = { check: jest.fn().mockResolvedValue(undefined) } as any;
     feesService = { calculateFee: jest.fn().mockReturnValue({ feeAmount: 0, reason: null }), recordFee: jest.fn().mockResolvedValue({}) } as any;
+    exchangeRateService = { getRate: jest.fn().mockResolvedValue({ rate: 1 }) } as any;
     deactivationService = { isUserDeactivated: jest.fn().mockResolvedValue(false) } as any;
     termsService = { ensureAccepted: jest.fn().mockResolvedValue(undefined) } as any;
 
@@ -90,6 +92,7 @@ describe('TransactionsService', () => {
       events as any,
       limitService as any,
       feesService as any,
+      exchangeRateService as any,
       deactivationService as any,
       termsService as any,
     );

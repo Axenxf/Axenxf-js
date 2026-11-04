@@ -15,8 +15,9 @@ export interface TransactionsServiceDeps {
   events: Ctor[8];
   limits: Ctor[9];
   fees: Ctor[10];
-  deactivation: Ctor[11];
-  terms: Ctor[12];
+  exchangeRate: Ctor[11];
+  deactivation: Ctor[12];
+  terms: Ctor[13];
 }
 
 /**
@@ -41,8 +42,12 @@ export function makeTransactionsService(
     d('mail', {}),
     d('users', {}),
     d('events', { emit: () => true }),
-    d('limits', { check: () => Promise.resolve(0), release: () => Promise.resolve() }),
+    d('limits', {
+      check: () => Promise.resolve(0),
+      release: () => Promise.resolve(),
+    }),
     d('fees', { calculateFee: () => ({ feeAmount: 0, reason: 'none' }) }),
+    d('exchangeRate', { getRate: () => Promise.resolve({ rate: 1 }) }),
     d('deactivation', { isUserDeactivated: () => Promise.resolve(false) }),
     d('terms', { ensureAccepted: () => Promise.resolve() }),
   );
