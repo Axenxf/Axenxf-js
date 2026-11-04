@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditLog } from './audit-log.entity';
 import { Transform } from 'stream';
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument } from 'pdf-lib';
 
 @Injectable()
 export class AuditExportService {
@@ -12,24 +12,37 @@ export class AuditExportService {
     private readonly repo: Repository<AuditLog>,
   ) {}
 
-  async streamExport(res: any, startDate: Date, endDate: Date, format: string = 'csv'): Promise<void> {
+  async streamExport(
+    res: any,
+    startDate: Date,
+    endDate: Date,
+    format: string = 'csv',
+  ): Promise<void> {
     const diff = endDate.getTime() - startDate.getTime();
     const maxSyncMs = 90 * 24 * 60 * 60 * 1000;
 
     if (diff > maxSyncMs) {
-      res.status(400).json({ message: 'Use async export for ranges > 90 days' });
+      res
+        .status(400)
+        .json({ message: 'Use async export for ranges > 90 days' });
       return;
     }
 
-    const query = this.repo
+    const query = await this.repo
       .createQueryBuilder('log')
-      .where('log.createdAt BETWEEN :start AND :end', { start: startDate, end: endDate })
+      .where('log.createdAt BETWEEN :start AND :end', {
+        start: startDate,
+        end: endDate,
+      })
       .orderBy('log.createdAt', 'ASC')
       .stream();
 
     if (format === 'json') {
       res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', 'attachment; filename="audit-export.json"');
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename="audit-export.json"',
+      );
       res.write('[');
       let isFirst = true;
       const jsonTransform = new Transform({
@@ -42,7 +55,7 @@ export class AuditExportService {
         flush(callback) {
           this.push(']');
           callback();
-        }
+        },
       });
       query.pipe(jsonTransform).pipe(res);
       return;
@@ -50,33 +63,63 @@ export class AuditExportService {
 
     if (format === 'pdf') {
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename="audit-export.pdf"');
-      
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename="audit-export.pdf"',
+      );
+
       const doc = await PDFDocument.create();
       let page = doc.addPage([600, 800]);
       let y = 750;
       page.drawText('Audit Logs Export', { x: 50, y, size: 20 });
       y -= 30;
 
-      query.on('data', (row: any) => {
-        if (y < 50) {
-          page = doc.addPage([600, 800]);
-          y = 750;
-        }
-        const text = `${row.log_createdAt?.toISOString?.() || row.log_createdAt} - ${row.log_userId} - ${row.log_action}`;
-        page.drawText(text.substring(0, 80), { x: 50, y, size: 10 });
-        y -= 15;
-      });
+      const rowStream = query as unknown as {
+        on(
+          event: 'data',
+          listener: (row: Record<string, unknown>) => void,
+        ): unknown;
+        once(event: 'error', listener: (error: Error) => void): unknown;
+        once(event: 'end', listener: () => void): unknown;
+      };
 
-      query.on('end', async () => {
-        const pdfBytes = await doc.save();
-        res.end(Buffer.from(pdfBytes));
+      await new Promise<void>((resolve, reject) => {
+        rowStream.on('data', (row) => {
+          if (y < 50) {
+            page = doc.addPage([600, 800]);
+            y = 750;
+          }
+          const createdAt = row.log_createdAt;
+          const timestamp =
+            createdAt instanceof Date
+              ? createdAt.toISOString()
+              : typeof createdAt === 'string' || typeof createdAt === 'number'
+                ? String(createdAt)
+                : '';
+          const userId =
+            typeof row.log_userId === 'string' ? row.log_userId : '';
+          const action =
+            typeof row.log_action === 'string' ? row.log_action : '';
+          const text = `${timestamp} - ${userId} - ${action}`;
+          page.drawText(text.substring(0, 80), { x: 50, y, size: 10 });
+          y -= 15;
+        });
+        rowStream.once('error', reject);
+        rowStream.once('end', () => {
+          void doc.save().then((pdfBytes) => {
+            res.end(Buffer.from(pdfBytes));
+            resolve();
+          }, reject);
+        });
       });
       return;
     }
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="audit-export.csv"');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="audit-export.csv"',
+    );
 
     const csvTransform = new Transform({
       objectMode: true,

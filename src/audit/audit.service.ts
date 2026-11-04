@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
 import { AuditLog } from './audit-log.entity';
 import { maskBody } from '../common/utils/redact';
@@ -31,20 +31,29 @@ export class AuditService {
     // During an impersonated request, every entry also names the real admin.
     const actorId = getRequestActorId();
     if (actorId) {
-      event = { ...event, after: { ...(event.after ?? {}), impersonatedBy: actorId } };
+      event = {
+        ...event,
+        after: { ...(event.after ?? {}), impersonatedBy: actorId },
+      };
     }
 
     // Never persist secrets/PII into the (exportable) audit trail.
-    const entry = repo.create({
+    const entry = this.auditRepo.create({
       ...event,
       ...(event.before !== undefined && {
-        before: maskBody(event.before, 0, AUDIT_MASK_DEPTH) as Record<string, unknown>,
+        before: maskBody(event.before, 0, AUDIT_MASK_DEPTH) as Record<
+          string,
+          unknown
+        >,
       }),
       ...(event.after !== undefined && {
-        after: maskBody(event.after, 0, AUDIT_MASK_DEPTH) as Record<string, unknown>,
+        after: maskBody(event.after, 0, AUDIT_MASK_DEPTH) as Record<
+          string,
+          unknown
+        >,
       }),
     });
-    return repo.save(entry);
+    return this.auditRepo.save(entry);
   }
 
   @OnEvent('audit.**')
