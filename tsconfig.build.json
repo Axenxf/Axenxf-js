@@ -12,6 +12,13 @@
     "src/modules/export/**",
     "src/modules/fee-reports/**",
     "src/modules/kyc-tiers/**",
-    "src/bulk-payments/**"
+    "src/bulk-payments/**",
+    "src/modules/compliance/**",
+    "src/modules/enrichment/**",
+    "src/modules/insights-forecast/**",
+    "src/notification/**",
+    "src/payments/claimable-balance.service.ts",
+    "src/transactions/stellar-xdr.service.ts",
+    "src/gateways/redis-adapter.ts"
   ]
 }

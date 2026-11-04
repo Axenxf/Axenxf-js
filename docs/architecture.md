@@ -40,6 +40,12 @@ that do not exist on the root `Transaction` entity. The live auth, transaction a
 the root modules under `src/auth`, `src/transactions` and `src/fees`; deferred features remain
 unavailable until their implementations and dependencies are complete.
 
+Unregistered legacy fragments are also omitted from the Nest build until they have an owning live
+module and their dependencies are restored: `src/modules/compliance`,
+`src/modules/enrichment`, `src/modules/insights-forecast`, `src/notification`,
+`src/payments/claimable-balance.service.ts`, `src/transactions/stellar-xdr.service.ts` and
+`src/gateways/redis-adapter.ts`.
+
 A further set of dangling imports duplicated modules that do exist under a different path, and were
 dropped in favour of the real ones: `./modules/reconciliation` (use `ReconciliationModule` from
 `src/reconciliation`), `./modules/mail` (`src/mail`), `./modules/wallets` (`src/wallet`) and
