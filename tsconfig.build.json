@@ -11,6 +11,7 @@
     "src/modules/rate-limit/**",
     "src/modules/export/**",
     "src/modules/fee-reports/**",
-    "src/modules/kyc-tiers/**"
+    "src/modules/kyc-tiers/**",
+    "src/bulk-payments/**"
   ]
 }

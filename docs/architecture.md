@@ -35,9 +35,10 @@ These exist under `src/modules/` as empty stubs and are **not** registered in `A
 Incomplete parallel feature implementations are deferred from `AppModule` and excluded from the
 Nest build: `src/modules/auth`, `src/modules/transactions`, `src/modules/fee`,
 `src/modules/rate-limit`, `src/modules/export`, `src/modules/fee-reports` and
-`src/modules/kyc-tiers`. The live auth, transaction and fee features use the root modules under
-`src/auth`, `src/transactions` and `src/fees`; the other listed features remain unavailable until
-their implementations and dependencies are complete.
+`src/modules/kyc-tiers`. `src/bulk-payments` is also deferred: its current processor writes fields
+that do not exist on the root `Transaction` entity. The live auth, transaction and fee features use
+the root modules under `src/auth`, `src/transactions` and `src/fees`; deferred features remain
+unavailable until their implementations and dependencies are complete.
 
 A further set of dangling imports duplicated modules that do exist under a different path, and were
 dropped in favour of the real ones: `./modules/reconciliation` (use `ReconciliationModule` from

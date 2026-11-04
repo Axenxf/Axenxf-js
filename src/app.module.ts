@@ -61,7 +61,6 @@ import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module
 import { WalletsModule } from './wallet/wallets.module';
 import { ReconciliationModule as UpstreamReconciliationModule } from './reconciliation/reconciliation.module';
 import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
-import { BulkPaymentsModule } from './bulk-payments/bulk-payments.module';
 import { ScheduledJobsModule } from './scheduled-jobs/scheduled-jobs.module';
 // DisputesModule is registered once here; the duplicate import that appeared
 // in an earlier merge (tracked as issue #1302) has been removed.
@@ -242,7 +241,6 @@ async function createCacheOptions(configService: ConfigService<Configuration>) {
     FeeTiersModule,
     WalletsModule,
     ExchangeRatesModule,
-    BulkPaymentsModule,
     DisputesModule,
     CurrenciesModule,
     TermsModule,
