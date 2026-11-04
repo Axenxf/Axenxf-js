@@ -40,7 +40,9 @@ export class AdminExportsProcessor {
     // shift or extend the result, then page with a keyset on (createdAt, id):
     // OFFSET paging over a non-unique createdAt can duplicate or skip rows.
     const jobStartedAt = new Date();
-    const upperBound = new Date(Math.min(new Date(to).getTime(), jobStartedAt.getTime()));
+    const upperBound = new Date(
+      Math.min(new Date(to).getTime(), jobStartedAt.getTime()),
+    );
 
     let cursor: { createdAt: Date; id: string } | null = null;
     let count = 0;
@@ -52,12 +54,17 @@ export class AdminExportsProcessor {
       if (status) qb.andWhere('t.status = :status', { status });
       if (currency) qb.andWhere('t.currency = :currency', { currency });
       if (cursor) {
-        qb.andWhere('(t.createdAt > :cAt OR (t.createdAt = :cAt AND t.id > :cId))', {
-          cAt: cursor.createdAt,
-          cId: cursor.id,
-        });
+        qb.andWhere(
+          '(t.createdAt > :cAt OR (t.createdAt = :cAt AND t.id > :cId))',
+          {
+            cAt: cursor.createdAt,
+            cId: cursor.id,
+          },
+        );
       }
-      qb.orderBy('t.createdAt', 'ASC').addOrderBy('t.id', 'ASC').take(BATCH_SIZE);
+      qb.orderBy('t.createdAt', 'ASC')
+        .addOrderBy('t.id', 'ASC')
+        .take(BATCH_SIZE);
 
       const batch = await qb.getMany();
       if (batch.length === 0) break;
@@ -83,6 +90,7 @@ export class AdminExportsProcessor {
 
       count += batch.length;
       const last = batch[batch.length - 1];
+      if (!last) break;
       cursor = { createdAt: last.createdAt, id: last.id };
       await job.progress(count);
       if (batch.length < BATCH_SIZE) break;
