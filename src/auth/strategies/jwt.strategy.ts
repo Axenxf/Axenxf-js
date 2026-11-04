@@ -15,6 +15,7 @@ export interface JwtPayload {
   iat: number;
   typ?: string;
   sid?: string;
+  tv?: number;
 }
 
 @Injectable()
@@ -46,7 +47,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException('User no longer exists');
     }
-    if (this.accountStatus && !(await this.accountStatus.isAllowedToAuthenticate(payload.sub))) {
+    if (
+      this.accountStatus &&
+      !(await this.accountStatus.isAllowedToAuthenticate(payload.sub))
+    ) {
       throw new UnauthorizedException('Account is not active');
     }
     if (
@@ -62,6 +66,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       role: payload.role,
       isEmailVerified: payload.isEmailVerified,
       sid: payload.sid,
+      tokenVersion: payload.tv,
     };
   }
 }

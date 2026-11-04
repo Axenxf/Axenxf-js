@@ -8,6 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { GqlExecutionContext } from '@nestjs/graphql';
 import { IS_PUBLIC_KEY } from './decorators/public.decorator';
 import { AuthenticatedUser } from './authenticated-user.interface';
 import { TokenType } from './token-types';
@@ -20,6 +21,8 @@ interface JwtPayload {
   email?: string;
   role?: string;
   roles?: string[];
+  sid?: string;
+  tv?: number;
   impersonation?: boolean;
   act?: { sub?: string };
 }
@@ -41,17 +44,11 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   private getRequest(context: ExecutionContext): AuthenticatedRequest {
-    if ((context.getType() as string) === 'graphql') {
-      try {
-        const { GqlExecutionContext } = require('@nestjs/graphql');
-        const gqlContext = GqlExecutionContext.create(context);
-        return gqlContext.getContext().req;
-      } catch {
-        const args = context.getArgs();
-        return (
-          args[2]?.req || context.switchToHttp().getRequest<AuthenticatedRequest>()
-        );
-      }
+    const contextType: string = context.getType();
+    if (contextType === 'graphql') {
+      return GqlExecutionContext.create(context).getContext<{
+        req: AuthenticatedRequest;
+      }>().req;
     }
     return context.switchToHttp().getRequest<AuthenticatedRequest>();
   }
@@ -89,31 +86,21 @@ export class JwtAuthGuard implements CanActivate {
     let payload: JwtPayload;
     try {
       const secret = String(this.config.get('jwt.secret') ?? '');
-      const payload = this.jwtService.verify<JwtPayload>(token, { secret });
-      if (payload.typ !== TokenType.ACCESS || !payload.sub) {
-        throw new UnauthorizedException('Invalid authentication token');
-      }
-      request.user = {
-        id: payload.sub,
-        sub: payload.sub,
-        email: payload.email ?? '',
-        role: payload.role ?? '',
-        isEmailVerified: payload.isEmailVerified,
-        ...(payload.impersonation
-          ? { impersonation: true, actorId: payload.act?.sub }
-          : {}),
-      };
-      return true;
+      payload = this.jwtService.verify<JwtPayload>(token, { secret });
     } catch {
       throw new UnauthorizedException('Invalid authentication token');
     }
+
     if (payload.typ !== TokenType.ACCESS || !payload.sub) {
       throw new UnauthorizedException('Invalid authentication token');
     }
 
     // A signed token is not enough: suspended, deactivated and deleted users
     // lose access immediately even though their token has not expired.
-    if (this.accountStatus && !(await this.accountStatus.isAllowedToAuthenticate(payload.sub))) {
+    if (
+      this.accountStatus &&
+      !(await this.accountStatus.isAllowedToAuthenticate(payload.sub))
+    ) {
       throw new UnauthorizedException('Account is not active');
     }
 
@@ -123,6 +110,11 @@ export class JwtAuthGuard implements CanActivate {
       email: payload.email ?? '',
       role: payload.role ?? '',
       isEmailVerified: payload.isEmailVerified,
+      sid: payload.sid,
+      tokenVersion: payload.tv,
+      ...(payload.impersonation
+        ? { impersonation: true, actorId: payload.act?.sub }
+        : {}),
     };
     return true;
   }
